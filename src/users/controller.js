@@ -1,6 +1,4 @@
-const createError = require('http-errors');
 const debug = require('debug')('app:module-users-controller');
-
 const { UsersService } = require('./services');
 const { Response } = require('../common/response');
 
@@ -19,11 +17,6 @@ module.exports.UsersController = {
         try {
             const { id } = req.params;
             const user = await UsersService.getById(id);
-
-            if (!user) {
-                throw new createError.NotFound('Usuario no encontrado');
-            }
-
             Response.success(res, 200, 'Usuario encontrado', user);
         } catch (error) {
             next(error);
@@ -33,9 +26,7 @@ module.exports.UsersController = {
     createUser: async (req, res, next) => {
         try {
             const { body } = req;
-
             const insertedId = await UsersService.create(body);
-
             Response.success(res, 201, 'Usuario creado correctamente', {
                 id: insertedId
             });
@@ -48,13 +39,7 @@ module.exports.UsersController = {
         try {
             const { id } = req.params;
             const { body } = req;
-
-            if (!body || Object.keys(body).length === 0) {
-                throw new createError.BadRequest('Datos incompletos');
-            }
-
             const result = await UsersService.updateUser(id, body);
-
             Response.success(res, 200, 'Usuario actualizado correctamente', result);
         } catch (error) {
             next(error);
@@ -64,15 +49,8 @@ module.exports.UsersController = {
     deleteUser: async (req, res, next) => {
         try {
             const { id } = req.params;
-
-            const user = await UsersService.getById(id);
-            if (!user) {
-                throw new createError.NotFound('Usuario no encontrado');
-            }
-
             await UsersService.deleteUser(id);
-
-            Response.success(res, 200, 'Usuario eliminado correctamente');
+            Response.success(res, 200, 'Usuario eliminado correctamente', null);
         } catch (error) {
             next(error);
         }
