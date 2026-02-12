@@ -79,9 +79,60 @@ const create = async (body) => {
   return result.insertedId;
 };
 
+const updateUser = async (id, body) => {
+  const collection = await Database(COLLECTION);
+
+  if (!ObjectId.isValid(id)) {
+    throw new createError.BadRequest('ID inválido');
+  }
+
+  if (!body || Object.keys(body).length === 0) {
+    throw new createError.BadRequest('Datos incompletos');
+  }
+
+  if (body.email && !emailRegex.test(body.email)) {
+    throw new createError.BadRequest('Email inválido');
+  }
+
+  if (body.password) {
+    body.password = await bcrypt.hash(body.password, SALT_ROUNDS);
+  }
+
+  const result = await collection.updateOne(
+    { _id: new ObjectId(id) },
+    { $set: body }
+  );
+
+  if (result.matchedCount === 0) {
+    throw new createError.NotFound('Usuario no encontrado');
+  }
+
+  return { modifiedCount: result.modifiedCount };
+};
+
+const deleteUser = async (id) => {
+  const collection = await Database(COLLECTION);
+
+  if (!ObjectId.isValid(id)) {
+    throw new createError.BadRequest('ID inválido');
+  }
+
+  const result = await collection.deleteOne({
+    _id: new ObjectId(id)
+  });
+
+  if (result.deletedCount === 0) {
+    throw new createError.NotFound('Usuario no encontrado');
+  }
+
+  return { deleted: true};
+};
+
 module.exports.UsersService = {
   getAll,
   getById,
   getByEmail,
-  create
+  deleteUser,
+  create,
+  updateUser
 };
