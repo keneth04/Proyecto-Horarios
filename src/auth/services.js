@@ -13,7 +13,6 @@ const { Database } = require('../database');
 const { Config } = require('../config');
 
 const COLLECTION = 'users';
-const SALT_ROUNDS = 10;
 
 // 🔑 Clave secreta del JWT (debe venir de .env)
 const JWT_SECRET = Config.jwt_secret;
@@ -23,32 +22,41 @@ const JWT_EXPIRES = '8h';
  * LOGIN
  */
 const login = async ({ email, password }) => {
+
+  // 1️⃣ Validar datos
   if (!email || !password) {
     throw new createError.BadRequest('Credenciales incompletas');
   }
 
   const collection = await Database(COLLECTION);
 
-  // 🔍 Buscar usuario
+  // 2️⃣ Buscar usuario
   const user = await collection.findOne({ email });
+
   if (!user) {
     throw new createError.Unauthorized('Credenciales inválidas');
   }
 
-  // 🔐 Comparar password
+  // 3️⃣ Validar si está inactivo
+  if (user.status === 'inactive') {
+    throw new createError.Forbidden('Usuario inactivo');
+  }
+
+  // 4️⃣ Validar contraseña
   const validPassword = await bcrypt.compare(password, user.password);
+
   if (!validPassword) {
     throw new createError.Unauthorized('Credenciales inválidas');
   }
 
-  // 🪙 Crear payload del token
+  // 5️⃣ Crear payload del token
   const payload = {
     id: user._id,
-    rol: user.rol,
+    role: user.role,
     email: user.email
   };
 
-  // 🎟️ Generar token
+  // 6️⃣ Generar token
   const token = jwt.sign(payload, JWT_SECRET, {
     expiresIn: JWT_EXPIRES
   });
@@ -57,14 +65,13 @@ const login = async ({ email, password }) => {
     token,
     user: {
       id: user._id,
-      nombres: user.nombres,
+      name: user.name,
       email: user.email,
-      rol: user.rol
+      role: user.role
     }
   };
 };
 
 module.exports.AuthService = {
-
   login
 };

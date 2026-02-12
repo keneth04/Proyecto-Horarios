@@ -1,14 +1,18 @@
 const createError = require('http-errors');
 
 module.exports.RoleMiddleware = (allowedRoles = []) => {
-    return (req, res, next) => {
-        const { role } = req.user;
+  return (req, res, next) => {
 
-        if (!allowedRoles.includes(role)) {
-            return next(new createError.Forbidden('No tienes permisos para realizar esta acción'));
-        }
+    if (!req.user) {
+      return next(new createError.Unauthorized('No autenticado'));
+    }
 
-        next();
-    };
+    if (!allowedRoles.includes(req.user.role)) {
+      return next(
+        new createError.Forbidden('No tienes permisos para realizar esta acción')
+      );
+    }
+
+    next();
+  };
 };
-

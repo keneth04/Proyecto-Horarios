@@ -1,24 +1,25 @@
-const {MongoClient} = require('mongodb');
-const debug = require('debug')('app: module-database');
-
+const { MongoClient } = require('mongodb');
+const debug = require('debug')('app:database');
 const { Config } = require('../config');
 
 let connection = null;
+let client = null;
 
-module.exports.Database = (collection) => new Promise(async(resolve , reject) => {
-try {
+module.exports.Database = async (collection) => {
+  try {
     if (!connection) {
-        const cliente = new MongoClient(Config.mongoUri);
-        connection = await cliente.connect();
-        debug('Nueva conexion realizada con MongoDB Atlas')
+      client = new MongoClient(Config.mongoUri);
+      await client.connect();
+      connection = client.db(Config.mongoDbname);
+      debug('Nueva conexión establecida con MongoDB');
     } else {
-        debug('Reutilizando conexion');
-        const db = connection.db(Config.mongoDbname);
-        resolve(db.collection(collection));
-        
+      debug('Reutilizando conexión existente');
     }
-    
-} catch (error) {
-    reject(error);
-}
-});
+
+    return connection.collection(collection);
+
+  } catch (error) {
+    debug('Error conectando a Mongo:', error);
+    throw error;
+  }
+};

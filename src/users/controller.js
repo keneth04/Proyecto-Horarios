@@ -6,17 +6,16 @@ const { Response } = require('../common/response');
 
 module.exports.UsersController = {
 
-    getUsers: async (req, res) => {
+    getUsers: async (req, res, next) => {
         try {
             const users = await UsersService.getAll();
             Response.success(res, 200, 'Lista de usuarios', users);
         } catch (error) {
-            debug(error);
-            Response.error(res, error);
+            next(error);
         }
     },
 
-    getUser: async (req, res) => {
+    getUser: async (req, res, next) => {
         try {
             const { id } = req.params;
             const user = await UsersService.getById(id);
@@ -27,12 +26,11 @@ module.exports.UsersController = {
 
             Response.success(res, 200, 'Usuario encontrado', user);
         } catch (error) {
-            debug(error);
-            Response.error(res, error);
+            next(error);
         }
     },
 
-    createUser: async (req, res) => {
+    createUser: async (req, res, next) => {
         try {
             const { body } = req;
 
@@ -42,12 +40,11 @@ module.exports.UsersController = {
                 id: insertedId
             });
         } catch (error) {
-            debug(error);
-            Response.error(res, error);
+            next(error);
         }
     },
 
-    updateUser: async (req, res) => {
+    updateUser: async (req, res, next) => {
         try {
             const { id } = req.params;
             const { body } = req;
@@ -60,12 +57,11 @@ module.exports.UsersController = {
 
             Response.success(res, 200, 'Usuario actualizado correctamente', result);
         } catch (error) {
-            debug(error);
-            Response.error(res, error);
+            next(error);
         }
     },
 
-    deleteUser: async (req, res) => {
+    deleteUser: async (req, res, next) => {
         try {
             const { id } = req.params;
 
@@ -78,8 +74,7 @@ module.exports.UsersController = {
 
             Response.success(res, 200, 'Usuario eliminado correctamente');
         } catch (error) {
-            debug(error);
-            Response.error(res, error);
+            next(error);
         }
     }
 };
