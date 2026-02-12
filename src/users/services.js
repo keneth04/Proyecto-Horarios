@@ -1,116 +1,87 @@
-// en este archivo vamos a gestionar todos los datos y la comunicacion con la base de datos
-
 const { ObjectId } = require('mongodb');
 const bcrypt = require('bcrypt');
 const createError = require('http-errors');
 const { Database } = require('../database');
 
 const COLLECTION = 'users';
+const SALT_ROUNDS = 10;
+
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const getAll = async () => {
-    const collection = await Database(COLLECTION);
-    return await collection.find(
-        {},
-        { projection: { password: 0 } }
-    ).toArray();
+  const collection = await Database(COLLECTION);
+  return collection.find({}, { projection: { password: 0 } }).toArray();
 };
 
 const getById = async (id) => {
-    const collection = await Database(COLLECTION);
+  const collection = await Database(COLLECTION);
 
-    if (!ObjectId.isValid(id)) {
-        throw new createError.BadRequest('Id inválido');
-    }
+  if (!ObjectId.isValid(id)) {
+    throw new createError.BadRequest('ID inválido');
+  }
 
-    return await collection.findOne(
-        { _id: new ObjectId(id) },
-        { projection: { password: 0 } }
-    );
+  const user = await collection.findOne(
+    { _id: new ObjectId(id) },
+    { projection: { password: 0 } }
+  );
+
+  if (!user) {
+    throw new createError.NotFound('Usuario no encontrado');
+  }
+
+  return user;
 };
 
 const getByEmail = async (email) => {
-    const collection = await Database(COLLECTION);
-    return await collection.findOne({ email });
+  const collection = await Database(COLLECTION);
+  return collection.findOne({ email });
 };
 
 const create = async (body) => {
-    const collection = await Database(COLLECTION);
+  const collection = await Database(COLLECTION);
 
-    const { name, email, password, role } = body;
+  const { name, email, password, role: bodyRole } = body;
 
-    if (!name || !email || !password) {
-        throw new createError.BadRequest('Datos incompletos');
-    }
+  if (!name || !email || !password) {
+    throw new createError.BadRequest('Datos incompletos');
+  }
 
-    const userExists = await getByEmail(email);
-    if (userExists) {
-        throw new createError.Conflict('El usuario ya existe');
-    }
+  if (!emailRegex.test(email)) {
+    throw new createError.BadRequest('Email inválido');
+  }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+  const userExists = await getByEmail(email);
+  if (userExists) {
+    throw new createError.Conflict('El usuario ya existe');
+  }
 
-    const newUser = {
-        name,
-        email,
-        password: hashedPassword,
-        role: role || 'agente',
-        createdAt: new Date()
-    };
+  const totalUsers = await collection.countDocuments();
 
-    const result = await collection.insertOne(newUser);
+  let finalRole = bodyRole || 'agente';
 
-    return {
-        id: result.insertedId,
-        name: newUser.name,
-        email: newUser.email,
-        role: newUser.role
-    };
-};
+  if (totalUsers === 0) {
+    finalRole = 'admin';
+  }
 
-const updateUser = async (id, body) => {
-    const collection = await Database(COLLECTION);
+  const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
-    if (!ObjectId.isValid(id)) {
-        throw new createError.BadRequest('Id inválido');
-    }
+  const newUser = {
+    name,
+    email,
+    password: hashedPassword,
+    role: finalRole,
+    status: 'active',
+    createdAt: new Date()
+  };
 
-    if (body.password) {
-        body.password = await bcrypt.hash(body.password, 10);
-    }
+  const result = await collection.insertOne(newUser);
 
-    const result = await collection.updateOne(
-        { _id: new ObjectId(id) },
-        { $set: body }
-    );
-
-    if (result.matchedCount === 0) {
-        throw new createError.NotFound('Usuario no encontrado');
-    }
-
-    return result;
-};
-
-const deleteUser = async (id) => {
-    const collection = await Database(COLLECTION);
-
-    if (!ObjectId.isValid(id)) {
-        throw new createError.BadRequest('Id inválido');
-    }
-
-    const result = await collection.deleteOne({ _id: new ObjectId(id) });
-
-    if (result.deletedCount === 0) {
-        throw new createError.NotFound('Usuario no encontrado');
-    }
-
-    return result;
+  return result.insertedId;
 };
 
 module.exports.UsersService = {
-    getAll,
-    getById,
-    getByEmail,
-    create,
-    updateUser,
-    deleteUser
+  getAll,
+  getById,
+  getByEmail,
+  create
 };
