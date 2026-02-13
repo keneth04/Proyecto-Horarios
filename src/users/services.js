@@ -90,6 +90,10 @@ const updateUser = async (id, body) => {
     throw new createError.BadRequest('Datos incompletos');
   }
 
+  if (body.status) {
+    throw new createError.BadRequest('El estado no puede modificarse desde este endpoint');
+  }
+
   if (body.email && !emailRegex.test(body.email)) {
     throw new createError.BadRequest('Email inválido');
   }
@@ -110,29 +114,34 @@ const updateUser = async (id, body) => {
   return { modifiedCount: result.modifiedCount };
 };
 
-const deleteUser = async (id) => {
+const changeStatus = async (id, status) => {
   const collection = await Database(COLLECTION);
 
   if (!ObjectId.isValid(id)) {
     throw new createError.BadRequest('ID inválido');
   }
 
-  const result = await collection.deleteOne({
-    _id: new ObjectId(id)
-  });
+  if (!['active', 'inactive'].includes(status)) {
+    throw new createError.BadRequest('Estado inválido');
+  }
 
-  if (result.deletedCount === 0) {
+  const result = await collection.updateOne(
+    { _id: new ObjectId(id) },
+    { $set: { status } }
+  );
+
+  if (result.matchedCount === 0) {
     throw new createError.NotFound('Usuario no encontrado');
   }
 
-  return { deleted: true};
+  return { status };
 };
 
 module.exports.UsersService = {
   getAll,
   getById,
   getByEmail,
-  deleteUser,
   create,
-  updateUser
+  updateUser,
+  changeStatus
 };

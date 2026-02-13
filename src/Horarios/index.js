@@ -12,16 +12,22 @@ module.exports.HorariosAPI = (app) => {
   router
 
     /**
-     * 🔥 IMPORTANTE:
-     * Rutas específicas PRIMERO
+     * 🔥 Rutas específicas primero
      */
 
-    // 📌 AGENTE - ver solo sus horarios
+    // 📌 AGENTE - ver solo sus horarios PUBLICADOS
     .get('/mi-horario',
       AuthMiddleware,
       ActiveUserMiddleware,
       RoleMiddleware(['agente']),
       HorariosController.getMyHorarios
+    )
+
+    // 📌 ADMIN - publicar horarios por fecha
+    .post('/publicar',
+      AuthMiddleware,
+      RoleMiddleware(['admin']),
+      HorariosController.publishByDate
     )
 
     // 📌 ADMIN - ver horarios por userId
@@ -31,49 +37,32 @@ module.exports.HorariosAPI = (app) => {
       HorariosController.getHorariosByUser
     )
 
-    /**
-     * 📌 ADMIN - ver todos
-     */
+    // 📌 ADMIN - ver todos
     .get('/',
       AuthMiddleware,
       RoleMiddleware(['admin']),
       HorariosController.getHorarios
     )
 
-    /**
-     * 📌 ADMIN - ver por id
-     */
+    // 📌 ADMIN - ver por id
     .get('/:id',
       AuthMiddleware,
       RoleMiddleware(['admin']),
       HorariosController.getHorario
     )
 
-    /**
-     * 📌 ADMIN - crear
-     */
+    // 📌 ADMIN - crear
     .post('/',
       AuthMiddleware,
       RoleMiddleware(['admin']),
       HorariosController.createHorario
     )
 
-    /**
-     * 📌 ADMIN - actualizar
-     */
+    // 📌 ADMIN - actualizar
     .patch('/:id',
       AuthMiddleware,
       RoleMiddleware(['admin']),
       HorariosController.updateHorario
-    )
-
-    /**
-     * 📌 ADMIN - eliminar
-     */
-    .delete('/:id',
-      AuthMiddleware,
-      RoleMiddleware(['admin']),
-      HorariosController.deleteHorario
     );
 
   app.use('/api/horarios', router);

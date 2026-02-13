@@ -36,8 +36,8 @@ module.exports.HorariosController = {
   getMyHorarios: async (req, res, next) => {
     try {
       const userId = req.user.id.toString();
-      const horarios = await HorariosService.getByUserId(userId);
-      Response.success(res, 200, 'Mis horarios', horarios);
+      const horarios = await HorariosService.getPublishedByUserId(userId);
+      Response.success(res, 200, 'Mis horarios publicados', horarios);
     } catch (error) {
       next(error);
     }
@@ -54,7 +54,7 @@ module.exports.HorariosController = {
 
       const insertedId = await HorariosService.create(horarioData);
 
-      Response.success(res, 201, 'Horario creado correctamente', {
+      Response.success(res, 201, 'Horario creado como borrador', {
         id: insertedId
       });
     } catch (error) {
@@ -75,13 +75,13 @@ module.exports.HorariosController = {
     }
   },
 
-  deleteHorario: async (req, res, next) => {
+  publishByDate: async (req, res, next) => {
     try {
-      const { id } = req.params;
+      const { date } = req.body;
 
-      await HorariosService.remove(id);
+      const result = await HorariosService.publishByDate(date);
 
-      Response.success(res, 200, 'Horario eliminado correctamente', null);
+      Response.success(res, 200, 'Horarios publicados correctamente', result);
     } catch (error) {
       next(error);
     }

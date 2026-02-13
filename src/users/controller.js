@@ -46,11 +46,17 @@ module.exports.UsersController = {
         }
     },
 
-    deleteUser: async (req, res, next) => {
+    /**
+     * 🔥 NUEVO ENDPOINT PARA SWITCH
+     */
+    changeStatus: async (req, res, next) => {
         try {
             const { id } = req.params;
-            await UsersService.deleteUser(id);
-            Response.success(res, 200, 'Usuario eliminado correctamente', null);
+            const { status } = req.body;
+
+            const result = await UsersService.changeStatus(id, status);
+
+            Response.success(res, 200, 'Estado actualizado correctamente', result);
         } catch (error) {
             next(error);
         }

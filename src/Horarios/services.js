@@ -28,7 +28,7 @@ const getById = async (id) => {
   return horario;
 };
 
-/* 🔹 ADMIN / AGENTE - traer por userId */
+/* 🔹 ADMIN / AGENTE */
 const getByUserId = async (userId) => {
   const collection = await Database(COLLECTION);
 
@@ -36,15 +36,30 @@ const getByUserId = async (userId) => {
     throw new createError.BadRequest('ID de usuario inválido');
   }
 
-  const horarios = await collection
+  return collection
     .find({ userId: new ObjectId(userId) })
     .sort({ date: -1 })
     .toArray();
-
-  return horarios;
 };
 
-/* 🔹 ADMIN - crear */
+/* 🔹 AGENTE - SOLO publicados */
+const getPublishedByUserId = async (userId) => {
+  const collection = await Database(COLLECTION);
+
+  if (!ObjectId.isValid(userId)) {
+    throw new createError.BadRequest('ID de usuario inválido');
+  }
+
+  return collection
+    .find({
+      userId: new ObjectId(userId),
+      status: 'publicado'
+    })
+    .sort({ date: -1 })
+    .toArray();
+};
+
+/* 🔹 ADMIN - crear (SIEMPRE borrador) */
 const create = async (horario) => {
   const collection = await Database(COLLECTION);
   const usersCollection = await Database(USERS_COLLECTION);
@@ -59,13 +74,13 @@ const create = async (horario) => {
     throw new createError.BadRequest('ID inválido');
   }
 
-  // 🔥 Validar que el usuario exista
   const userExists = await usersCollection.findOne({
-    _id: new ObjectId(userId)
+    _id: new ObjectId(userId),
+    status: 'active'
   });
 
   if (!userExists) {
-    throw new createError.NotFound('El usuario no existe');
+    throw new createError.NotFound('El usuario no existe o está inactivo');
   }
 
   const newHorario = {
@@ -74,7 +89,7 @@ const create = async (horario) => {
     blocks,
     createdBy: new ObjectId(createdBy),
     createdAt: new Date(),
-    status: horario.status || 'borrador'
+    status: 'borrador'
   };
 
   const result = await collection.insertOne(newHorario);
@@ -90,10 +105,6 @@ const update = async (id, body) => {
     throw new createError.BadRequest('ID de horario inválido');
   }
 
-  if (!body || Object.keys(body).length === 0) {
-    throw new createError.BadRequest('Datos incompletos');
-  }
-
   const existingHorario = await collection.findOne({
     _id: new ObjectId(id)
   });
@@ -102,12 +113,17 @@ const update = async (id, body) => {
     throw new createError.NotFound('Horario no encontrado');
   }
 
-  // 🔥 Solo actualiza lo que venga
+  if (existingHorario.status === 'archivado') {
+    throw new createError.BadRequest('No se puede editar un horario archivado');
+  }
+
   const updateData = { ...body };
 
   if (body.date) {
     updateData.date = new Date(body.date);
   }
+
+  updateData.updatedAt = new Date();
 
   await collection.updateOne(
     { _id: new ObjectId(id) },
@@ -117,30 +133,65 @@ const update = async (id, body) => {
   return { updated: true };
 };
 
-/* 🔹 ADMIN - eliminar */
-const remove = async (id) => {
+/* 🔹 ADMIN - publicar por fecha */
+const publishByDate = async (date) => {
   const collection = await Database(COLLECTION);
 
-  if (!ObjectId.isValid(id)) {
-    throw new createError.BadRequest('ID de horario inválido');
+  if (!date) {
+    throw new createError.BadRequest('La fecha es obligatoria');
   }
 
-  const result = await collection.deleteOne({
-    _id: new ObjectId(id)
+  const publishDate = new Date(date);
+
+  const startOfDay = new Date(publishDate);
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const endOfDay = new Date(publishDate);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  // 🔎 1️⃣ Validar que existan borradores para esa fecha
+  const borradoresCount = await collection.countDocuments({
+    status: 'borrador',
+    date: { $gte: startOfDay, $lte: endOfDay }
   });
 
-  if (result.deletedCount === 0) {
-    throw new createError.NotFound('Horario no encontrado');
+  if (borradoresCount === 0) {
+    throw new createError.NotFound(
+      'No existen horarios en borrador para la fecha indicada'
+    );
   }
 
-  return { deleted: true };
+  // 📦 2️⃣ Archivar los actualmente publicados
+  await collection.updateMany(
+    { status: 'publicado' },
+    { $set: { status: 'archivado', archivedAt: new Date() } }
+  );
+
+  // 🚀 3️⃣ Publicar borradores de la fecha
+  const result = await collection.updateMany(
+    {
+      status: 'borrador',
+      date: { $gte: startOfDay, $lte: endOfDay }
+    },
+    {
+      $set: {
+        status: 'publicado',
+        publishedAt: new Date()
+      }
+    }
+  );
+
+  return {
+    publishedCount: result.modifiedCount
+  };
 };
 
 module.exports.HorariosService = {
   getAll,
   getById,
   getByUserId,
+  getPublishedByUserId,
   create,
   update,
-  remove
+  publishByDate
 };
