@@ -20,17 +20,13 @@ module.exports.UsersAPI = (app) => {
             try {
                 const users = await UsersService.getAll();
 
-                // Si ya existe al menos un usuario → exigir autenticación
                 if (users.length > 0) {
                     return AuthMiddleware(req, res, (err) => {
                         if (err) return next(err);
-
-                        // Luego validar rol admin
                         RoleMiddleware(['admin'])(req, res, next);
                     });
                 }
 
-                // Si no hay usuarios → permitir crear primer admin
                 next();
 
             } catch (error) {
@@ -68,12 +64,12 @@ module.exports.UsersAPI = (app) => {
         UsersController.updateUser
     );
 
-    // Eliminar usuario (solo admin)
-    router.delete(
-        '/:id',
+    // 🔥 Cambiar estado (activar / inactivar)
+    router.patch(
+        '/:id/status',
         AuthMiddleware,
         RoleMiddleware(['admin']),
-        UsersController.deleteUser
+        UsersController.changeStatus
     );
 
     app.use('/api/users', router);
