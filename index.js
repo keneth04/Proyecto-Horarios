@@ -6,6 +6,7 @@ const { HorariosAPI } = require('./src/Horarios');
 const { UsersAPI } = require('./src/users');
 const { AuthAPI } = require('./src/auth');
 const { ErrorMiddleware } = require('./src/middlewares/errorMiddleware');
+const { SkillsAPI } = require('./src/skills');
 
 const app = express();
 
@@ -14,6 +15,7 @@ app.use(express.json());
 HorariosAPI(app);
 UsersAPI(app);
 AuthAPI(app);
+SkillsAPI(app);
 
 // 🔥 Middleware global de errores (SIEMPRE AL FINAL)
 app.use(ErrorMiddleware);
