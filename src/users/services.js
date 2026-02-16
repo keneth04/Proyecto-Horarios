@@ -4,6 +4,7 @@ const createError = require('http-errors');
 const { Database } = require('../database');
 
 const COLLECTION = 'users';
+const SKILLS_COLLECTION = 'skills';
 const SALT_ROUNDS = 10;
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -71,6 +72,7 @@ const create = async (body) => {
     password: hashedPassword,
     role: finalRole,
     status: 'active',
+    allowedSkills: [], // 🔥 agregado
     createdAt: new Date()
   };
 
@@ -81,6 +83,7 @@ const create = async (body) => {
 
 const updateUser = async (id, body) => {
   const collection = await Database(COLLECTION);
+  const skillsCollection = await Database(SKILLS_COLLECTION);
 
   if (!ObjectId.isValid(id)) {
     throw new createError.BadRequest('ID inválido');
@@ -101,6 +104,42 @@ const updateUser = async (id, body) => {
   if (body.password) {
     body.password = await bcrypt.hash(body.password, SALT_ROUNDS);
   }
+
+  /**
+   * 🔥 VALIDACIÓN DE SKILLS
+   */
+  if (body.allowedSkills !== undefined) {
+
+    if (!Array.isArray(body.allowedSkills)) {
+      throw new createError.BadRequest('allowedSkills debe ser un arreglo');
+    }
+
+    const uniqueSkills = [...new Set(body.allowedSkills)];
+
+    const validatedSkills = [];
+
+    for (const skillId of uniqueSkills) {
+
+      if (!ObjectId.isValid(skillId)) {
+        throw new createError.BadRequest(`Skill inválida: ${skillId}`);
+      }
+
+      const skill = await skillsCollection.findOne({
+        _id: new ObjectId(skillId),
+        status: 'active'
+      });
+
+      if (!skill) {
+        throw new createError.BadRequest(`Skill no existe o está inactiva: ${skillId}`);
+      }
+
+      validatedSkills.push(new ObjectId(skillId));
+    }
+
+    body.allowedSkills = validatedSkills;
+  }
+
+  body.updatedAt = new Date();
 
   const result = await collection.updateOne(
     { _id: new ObjectId(id) },
@@ -127,7 +166,12 @@ const changeStatus = async (id, status) => {
 
   const result = await collection.updateOne(
     { _id: new ObjectId(id) },
-    { $set: { status } }
+    { 
+      $set: { 
+        status,
+        updatedAt: new Date()
+      } 
+    }
   );
 
   if (result.matchedCount === 0) {
