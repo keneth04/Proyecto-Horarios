@@ -72,7 +72,7 @@ const create = async (body) => {
     password: hashedPassword,
     role: finalRole,
     status: 'active',
-    allowedSkills: [], // 🔥 agregado
+    allowedSkills: [],
     createdAt: new Date()
   };
 
@@ -106,7 +106,7 @@ const updateUser = async (id, body) => {
   }
 
   /**
-   * 🔥 VALIDACIÓN DE SKILLS
+   * 🔥 VALIDACIÓN DE SKILLS (BREAK BLOQUEADO)
    */
   if (body.allowedSkills !== undefined) {
 
@@ -115,7 +115,6 @@ const updateUser = async (id, body) => {
     }
 
     const uniqueSkills = [...new Set(body.allowedSkills)];
-
     const validatedSkills = [];
 
     for (const skillId of uniqueSkills) {
@@ -131,6 +130,11 @@ const updateUser = async (id, body) => {
 
       if (!skill) {
         throw new createError.BadRequest(`Skill no existe o está inactiva: ${skillId}`);
+      }
+
+      // 🔥 BLOQUEAR BREAK
+      if (skill.type === 'break') {
+        throw new createError.BadRequest('No se puede asignar la skill BREAK a un usuario');
       }
 
       validatedSkills.push(new ObjectId(skillId));
