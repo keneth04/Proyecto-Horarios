@@ -78,7 +78,6 @@ module.exports.HorariosController = {
   publishByDate: async (req, res, next) => {
     try {
       const { date } = req.body;
-
       const result = await HorariosService.publishByDate(date);
 
       Response.success(res, 200, 'Horarios publicados correctamente', result);
