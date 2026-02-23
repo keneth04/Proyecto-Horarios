@@ -30,6 +30,12 @@ module.exports.HorariosAPI = (app) => {
       HorariosController.publishByDate
     )
 
+    .patch('/editar-semana-publicada',
+      AuthMiddleware,
+      RoleMiddleware(['admin']),
+      HorariosController.editPublishedWeek
+)
+
     // 📌 ADMIN - ver horarios por userId
     .get('/usuario/:userId',
       AuthMiddleware,
@@ -50,7 +56,7 @@ module.exports.HorariosAPI = (app) => {
       RoleMiddleware(['admin']),
       HorariosController.getHorario
     )
-
+    
     // 📌 ADMIN - crear
     .post('/',
       AuthMiddleware,
@@ -62,7 +68,7 @@ module.exports.HorariosAPI = (app) => {
     .patch('/:id',
       AuthMiddleware,
       RoleMiddleware(['admin']),
-      HorariosController.updateHorario
+      HorariosController.updateHorario 
     );
 
   app.use('/api/horarios', router);

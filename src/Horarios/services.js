@@ -46,6 +46,10 @@ const getWeekRange = (dateString) => {
   return { weekStart, weekEnd };
 };
 
+  const normalizeDate = (date) => {
+  const d = new Date(date);
+  return d.toISOString().split('T')[0];
+};
 
 const validateBlocksStructure = (blocks) => {
 
@@ -189,11 +193,12 @@ const create = async (horario) => {
     throw new createError.BadRequest('Datos incompletos');
 
   if (!ObjectId.isValid(userId) || !ObjectId.isValid(createdBy))
-    throw new createError.BadRequest('ID inválido');
+    throw new createError.BadRequest(
+      'El identificador del horario no es válido'
+);
 
   const scheduleDate = new Date(date);
 
-  // 🔥 Unicidad por día
   const startOfDay = new Date(scheduleDate);
   startOfDay.setHours(0,0,0,0);
 
@@ -222,7 +227,12 @@ const create = async (horario) => {
 
   const allowed = (user.allowedSkills || []).map(id=>id.toString());
 
-  for (const block of validatedBlocks) {
+  let hasRest = false;
+  let consecutiveWorkMinutes = 0;
+
+  for (let i = 0; i < validatedBlocks.length; i++) {
+
+    const block = validatedBlocks[i];
 
     if (!ObjectId.isValid(block.skillId))
       throw new createError.BadRequest('SkillId inválido');
@@ -235,11 +245,51 @@ const create = async (horario) => {
     if (!skill)
       throw new createError.BadRequest('Skill no existe');
 
-    if (skill.type !== 'break' &&
-        !allowed.includes(skill._id.toString())) {
-      throw new createError.BadRequest(
-        'Skill no permitida para el agente'
-      );
+    const duration =
+      timeToMinutes(block.end) -
+      timeToMinutes(block.start);
+
+    // 🔥 VALIDACIÓN REST
+    if (skill.type === 'rest') {
+
+      if (hasRest)
+        throw new createError.BadRequest(
+          'Solo puede existir un bloque de descanso por día'
+        );
+
+      if (validatedBlocks.length !== 1)
+        throw new createError.BadRequest(
+          'El descanso no puede mezclarse con otros bloques'
+        );
+
+      if (block.start !== '08:00' || block.end !== '21:00')
+        throw new createError.BadRequest(
+          'El descanso debe cubrir la jornada completa (08:00 - 21:00)'
+        );
+
+      hasRest = true;
+      consecutiveWorkMinutes = 0;
+    }
+
+    // 🔥 VALIDACIÓN 4H CONSECUTIVAS
+    if (skill.type === 'operative') {
+
+      if (!allowed.includes(skill._id.toString()))
+        throw new createError.BadRequest(
+          'Skill no permitida para el agente'
+        );
+
+      consecutiveWorkMinutes += duration;
+
+      if (consecutiveWorkMinutes > 240)
+        throw new createError.BadRequest(
+          'No se puede trabajar más de 4 horas consecutivas sin break'
+        );
+
+    }
+
+    if (skill.type === 'break') {
+      consecutiveWorkMinutes = 0;
     }
 
     block.skillId = new ObjectId(block.skillId);
@@ -257,7 +307,8 @@ const create = async (horario) => {
   return result.insertedId;
 };
 
-/* 🔹 ADMIN - actualizar (BLINDADO) */
+
+
 /* 🔹 ADMIN - actualizar (ULTRA BLINDADO) */
 const update = async (id, body) => {
 
@@ -291,8 +342,12 @@ const update = async (id, body) => {
 
     const validatedBlocks = validateBlocksStructure(body.blocks);
 
-    // 🔥 Validar que las skills existan y estén activas
-    for (const block of validatedBlocks) {
+    let hasRest = false;
+    let consecutiveWorkMinutes = 0;
+
+    for (let i = 0; i < validatedBlocks.length; i++) {
+
+      const block = validatedBlocks[i];
 
       if (!ObjectId.isValid(block.skillId))
         throw new createError.BadRequest('SkillId inválido');
@@ -305,10 +360,50 @@ const update = async (id, body) => {
       if (!skill)
         throw new createError.BadRequest('Skill no existe o está inactiva');
 
+      const duration =
+        timeToMinutes(block.end) -
+        timeToMinutes(block.start);
+
+      if (skill.type === 'rest') {
+
+        if (hasRest)
+          throw new createError.BadRequest(
+            'Solo puede existir un bloque de descanso por día'
+          );
+
+        if (validatedBlocks.length !== 1)
+          throw new createError.BadRequest(
+            'El descanso no puede mezclarse con otros bloques'
+          );
+
+        if (block.start !== '08:00' || block.end !== '21:00')
+          throw new createError.BadRequest(
+            'El descanso debe cubrir la jornada completa (08:00 - 21:00)'
+          );
+
+        hasRest = true;
+        consecutiveWorkMinutes = 0;
+      }
+
+      if (skill.type === 'operative') {
+
+        consecutiveWorkMinutes += duration;
+
+        if (consecutiveWorkMinutes > 240)
+          throw new createError.BadRequest(
+            'No se puede trabajar más de 4 horas consecutivas sin break'
+          );
+
+      }
+
+      if (skill.type === 'break') {
+        consecutiveWorkMinutes = 0;
+      }
+
       block.skillId = new ObjectId(block.skillId);
     }
 
-    // 🔥 SI YA ESTÁ PUBLICADO → VALIDAR REGLAS SEMANALES
+    // 🔥 VALIDACIÓN 42H SI ESTÁ PUBLICADO
     if (existing.status === 'publicado') {
 
       const targetDate = updateData.date || existing.date;
@@ -337,7 +432,9 @@ const update = async (id, body) => {
             _id: new ObjectId(b.skillId)
           });
 
-          if (skill && skill.type !== 'break') {
+          if (skill &&
+              skill.type !== 'break' &&
+              skill.type !== 'rest') {
             totalMinutes +=
               timeToMinutes(b.end) -
               timeToMinutes(b.start);
@@ -365,6 +462,7 @@ const update = async (id, body) => {
   return { updated: true };
 };
 
+
 /* 🔹 ADMIN - publicar semana completa (TODOS LOS AGENTES) */
 const publishByDate = async (date) => {
 
@@ -377,7 +475,6 @@ const publishByDate = async (date) => {
 
   const { weekStart, weekEnd } = getWeekRange(date);
 
-  // 🔎 Traer todos los borradores de la semana (SÁBADO → VIERNES)
   const weeklyDrafts = await collection.find({
     status: 'borrador',
     date: { $gte: weekStart, $lte: weekEnd }
@@ -388,7 +485,7 @@ const publishByDate = async (date) => {
       'No existen horarios en borrador para esa semana'
     );
 
-  // 🔥 Agrupar por usuario
+  // 🔹 Agrupar por agente
   const groupedByUser = {};
 
   for (const schedule of weeklyDrafts) {
@@ -397,7 +494,7 @@ const publishByDate = async (date) => {
     groupedByUser[uid].push(schedule);
   }
 
-  // 🔥 Obtener todas las skills involucradas
+  // 🔹 Cargar todas las skills una sola vez
   const skillIds = [
     ...new Set(
       weeklyDrafts.flatMap(h =>
@@ -415,13 +512,24 @@ const publishByDate = async (date) => {
     skillsMap[s._id.toString()] = s;
   });
 
-  // 🔎 VALIDAR CADA USUARIO
+  // 🔥 VALIDACIONES POR AGENTE
   for (const userId in groupedByUser) {
 
-    let totalMinutes = 0;
+    const user = await usersCollection.findOne({
+      _id: new ObjectId(userId)
+    });
+
+    const userName = user?.name || 'Usuario desconocido';
     const schedules = groupedByUser[userId];
 
-    // 🛡 Blindaje: evitar doble documento mismo día
+    // 🔒 Deben existir exactamente 7 días
+    if (schedules.length !== 7)
+      throw new createError.BadRequest(
+        `El usuario ${userName} debe tener exactamente 7 días en borrador`
+      );
+
+    let totalMinutes = 0;
+    let restDayDate = null;
     const uniqueDays = new Set();
 
     for (const h of schedules) {
@@ -430,48 +538,112 @@ const publishByDate = async (date) => {
 
       if (uniqueDays.has(dayKey)) {
         throw new createError.BadRequest(
-          `El usuario ${userId} tiene múltiples horarios el día ${dayKey}`
+          `El usuario ${userName} tiene múltiples horarios el día ${dayKey}`
         );
       }
 
       uniqueDays.add(dayKey);
 
+      let hasRest = false;
+
       for (const b of h.blocks) {
+
         const skill = skillsMap[b.skillId.toString()];
-        if (skill && skill.type !== 'break') {
-          totalMinutes +=
-            timeToMinutes(b.end) -
-            timeToMinutes(b.start);
+        if (!skill)
+          throw new createError.BadRequest(
+            `Skill inválida detectada en horario del usuario ${userName}`
+          );
+
+        if (skill.type === 'rest') {
+
+          if (hasRest)
+            throw new createError.BadRequest(
+              `El usuario ${userName} tiene múltiples bloques de descanso el día ${dayKey}`
+            );
+
+          if (h.blocks.length !== 1)
+            throw new createError.BadRequest(
+              `El descanso del usuario ${userName} debe ser un único bloque el día ${dayKey}`
+            );
+
+          if (b.start !== '08:00' || b.end !== '21:00')
+            throw new createError.BadRequest(
+              `El descanso del usuario ${userName} debe cubrir 08:00 - 21:00`
+            );
+
+          hasRest = true;
+          restDayDate = new Date(h.date);
+        }
+
+        else if (skill.type !== 'break') {
+          totalMinutes += timeToMinutes(b.end) - timeToMinutes(b.start);
         }
       }
     }
 
-    if (totalMinutes !== WEEKLY_REQUIRED_MINUTES) {
-
-      const user = await usersCollection.findOne({
-        _id: new ObjectId(userId)
-      });
-
+    if (!restDayDate)
       throw new createError.BadRequest(
-        `El usuario ${user?.name || userId} tiene ${totalMinutes / 60} horas. Debe tener exactamente ${WEEKLY_REQUIRED_HOURS} horas operativas`
+        `El usuario ${userName} no tiene su día de descanso semanal obligatorio`
       );
+
+    if (totalMinutes !== WEEKLY_REQUIRED_MINUTES)
+      throw new createError.BadRequest(
+        `El usuario ${userName} tiene ${totalMinutes / 60} horas. Debe tener exactamente ${WEEKLY_REQUIRED_HOURS} horas operativas`
+      );
+
+    // 🔥 VALIDACIÓN 3–9 DÍAS ENTRE DESCANSOS
+    const previousSchedules = await collection.find({
+      userId: new ObjectId(userId),
+      status: { $in: ['publicado', 'archivado'] },
+      date: { $lt: restDayDate }
+    }).sort({ date: -1 }).toArray();
+
+    let lastRestDate = null;
+
+    for (const schedule of previousSchedules) {
+
+      for (const b of schedule.blocks) {
+
+        const skill = skillsMap[b.skillId.toString()];
+
+        if (skill && skill.type === 'rest') {
+          lastRestDate = new Date(schedule.date);
+          break;
+        }
+      }
+
+      if (lastRestDate) break;
     }
-  }
 
-  // ✅ SI TODOS CUMPLEN → PUBLICAR
+    if (lastRestDate) {
 
-  // Archivar todos los publicados actuales
-  await collection.updateMany(
-    { status: 'publicado' },
-    {
-      $set: {
-        status: 'archivado',
-        archivedAt: new Date()
+      const diffDays = Math.floor(
+        (restDayDate - lastRestDate) / (1000 * 60 * 60 * 24)
+      );
+
+      if (diffDays < 3 || diffDays > 9) {
+        throw new createError.BadRequest(
+          `El descanso del usuario ${userName} incumple la regla de 3 a 9 días entre descansos`
+        );
       }
     }
-  );
 
-  // Publicar todos los borradores de la semana
+    // 🔥 ARCHIVAR SOLO SEMANA PUBLICADA DE ESTE AGENTE
+    await collection.updateMany(
+      {
+        userId: new ObjectId(userId),
+        status: 'publicado'
+      },
+      {
+        $set: {
+          status: 'archivado',
+          archivedAt: new Date()
+        }
+      }
+    );
+  }
+
+  // 🔥 PUBLICAR NUEVA SEMANA
   const result = await collection.updateMany(
     {
       status: 'borrador',
@@ -492,6 +664,217 @@ const publishByDate = async (date) => {
   };
 };
 
+/* 🔥 ADMIN - EDITAR SEMANA YA PUBLICADA (SIN ARCHIVAR) */
+const editPublishedWeek = async ({ userId, date, schedules, editedBy }) => {
+
+  const collection = await Database(COLLECTION);
+  const skillsCollection = await Database(SKILLS_COLLECTION);
+
+  if (!ObjectId.isValid(userId))
+    throw new createError.BadRequest('UserId inválido');
+
+  if (!date || !Array.isArray(schedules) || schedules.length !== 7)
+    throw new createError.BadRequest(
+      'Debe enviar exactamente los 7 días de la semana'
+    );
+
+  const { weekStart, weekEnd } = getWeekRange(date);
+
+  const existingPublished = await collection.find({
+    userId: new ObjectId(userId),
+    status: 'publicado',
+    date: { $gte: weekStart, $lte: weekEnd }
+  }).toArray();
+
+  if (existingPublished.length !== 7)
+    throw new createError.BadRequest(
+      'La semana publicada está incompleta o no existe'
+    );
+
+  // 🔥 VALIDACIÓN ENTERPRISE ID ↔ FECHA (FIX DEFINITIVO)
+
+  const existingMap = {};
+  existingPublished.forEach(doc => {
+    existingMap[doc._id.toString()] = normalizeDate(doc.date);
+  });
+
+  for (const day of schedules) {
+
+    if (!ObjectId.isValid(day.id)) {
+      throw new createError.BadRequest(
+        `El identificador ${day.id} no es válido`
+      );
+    }
+
+    if (!existingMap[day.id]) {
+      throw new createError.BadRequest(
+        `El identificador ${day.id} no pertenece a la semana publicada del agente o no existe`
+      );
+    }
+
+    const originalDate = existingMap[day.id];
+    const newDate = normalizeDate(day.date);
+
+    if (originalDate !== newDate) {
+      throw new createError.BadRequest(
+        `El identificador ${day.id} corresponde a la fecha ${originalDate} y no puede ser reasignado a ${newDate}`
+      );
+    }
+  }
+
+  // 🔥 VALIDACIONES COMPLETAS (MISMO NIVEL QUE publishByDate)
+
+  let totalMinutes = 0;
+  let restDayDate = null;
+  const uniqueDays = new Set();
+
+  for (const day of schedules) {
+
+    const scheduleDate = new Date(day.date);
+    const dayKey = scheduleDate.toISOString().split('T')[0];
+
+    if (uniqueDays.has(dayKey))
+      throw new createError.BadRequest(
+        `Día duplicado en la semana: ${dayKey}`
+      );
+
+    uniqueDays.add(dayKey);
+
+    const validatedBlocks = validateBlocksStructure(day.blocks);
+
+    let hasRest = false;
+    let consecutiveWorkMinutes = 0;
+
+    for (const block of validatedBlocks) {
+
+      const skill = await skillsCollection.findOne({
+        _id: new ObjectId(block.skillId),
+        status: 'active'
+      });
+
+      if (!skill)
+        throw new createError.BadRequest(
+          'Una de las habilidades asignadas no existe o está inactiva'
+        );
+
+      const duration =
+        timeToMinutes(block.end) - timeToMinutes(block.start);
+
+      if (skill.type === 'rest') {
+
+        if (hasRest)
+          throw new createError.BadRequest(
+            'Solo puede existir un descanso por día'
+          );
+
+        if (validatedBlocks.length !== 1)
+          throw new createError.BadRequest(
+            'El descanso no puede mezclarse con otros bloques'
+          );
+
+        if (block.start !== '08:00' || block.end !== '21:00')
+          throw new createError.BadRequest(
+            'El descanso debe cubrir la jornada completa'
+          );
+
+        hasRest = true;
+        restDayDate = scheduleDate;
+        consecutiveWorkMinutes = 0;
+      }
+
+      if (skill.type === 'operative') {
+
+        consecutiveWorkMinutes += duration;
+
+        if (consecutiveWorkMinutes > 240)
+          throw new createError.BadRequest(
+            'No se puede trabajar más de 4 horas consecutivas sin break'
+          );
+
+        totalMinutes += duration;
+      }
+
+      if (skill.type === 'break')
+        consecutiveWorkMinutes = 0;
+    }
+  }
+
+  const userCollection = await Database(USERS_COLLECTION);
+  const userData = await userCollection.findOne({
+    _id: new ObjectId(userId)
+  });
+
+  const userName = userData?.name || 'Usuario desconocido';
+
+  if (!restDayDate)
+    throw new createError.BadRequest(
+      `El usuario ${userName} no tiene su día de descanso semanal obligatorio`
+    );
+
+  if (totalMinutes !== WEEKLY_REQUIRED_MINUTES)
+    throw new createError.BadRequest(
+      `La semana del agente ${userName} tiene ${totalMinutes / 60} horas operativas. Debe tener exactamente ${WEEKLY_REQUIRED_HOURS} horas`
+    );
+
+  // 🔥 VALIDACIÓN 3-9 DÍAS ENTRE DESCANSOS
+  const previousRest = await collection.find({
+    userId: new ObjectId(userId),
+    status: { $in: ['publicado', 'archivado'] },
+    date: { $lt: restDayDate }
+  }).sort({ date: -1 }).toArray();
+
+  let lastRestDate = null;
+
+  for (const schedule of previousRest) {
+    for (const b of schedule.blocks) {
+      const skill = await skillsCollection.findOne({
+        _id: new ObjectId(b.skillId)
+      });
+      if (skill && skill.type === 'rest') {
+        lastRestDate = new Date(schedule.date);
+        break;
+      }
+    }
+    if (lastRestDate) break;
+  }
+
+  if (lastRestDate) {
+
+    const diffDays = Math.floor(
+      (restDayDate - lastRestDate) / (1000 * 60 * 60 * 24)
+    );
+
+    if (diffDays < 3 || diffDays > 9)
+      throw new createError.BadRequest(
+        `El descanso del agente ${userName} incumple la regla de 3 a 9 días entre descansos`
+      );
+  }
+
+  // 🔥 TODO OK → ACTUALIZAR LOS MISMOS DOCUMENTOS
+
+  for (const day of schedules) {
+
+    await collection.updateOne(
+      { _id: new ObjectId(day.id), status: 'publicado' },
+      {
+        $set: {
+          date: new Date(day.date),
+          blocks: day.blocks.map(b => ({
+            start: b.start,
+            end: b.end,
+            skillId: new ObjectId(b.skillId)
+          })),
+          editedAt: new Date(),
+          editedBy: new ObjectId(editedBy)
+        }
+      }
+    );
+  }
+
+  return { edited: true };
+};
+  
+
 module.exports.HorariosService = {
   getAll,
   getById,
@@ -499,5 +882,6 @@ module.exports.HorariosService = {
   getPublishedByUserId,
   create,
   update,
-  publishByDate
+  publishByDate,
+  editPublishedWeek,
 };
