@@ -84,6 +84,23 @@ module.exports.HorariosController = {
     } catch (error) {
       next(error);
     }
+  },
+
+
+  editPublishedWeek: async (req, res, next) => {
+    try {
+      const { body, user } = req;
+
+      const result = await HorariosService.editPublishedWeek({
+        ...body,
+        editedBy: user.id
+      });
+
+      Response.success(res, 200, 'Semana publicada editada correctamente', result);
+    } catch (error) {
+      next(error);
+    }
   }
+
 
 };
