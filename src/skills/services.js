@@ -32,6 +32,11 @@ const inferTypeFromName = (name) => {
   if (upper === 'BREAK') return 'break';
   if (upper === 'REST' || upper === 'DESCANSO') return 'rest';
 
+  // ✅ AUSENCIAS (bloque completo)
+  if (upper === 'VACACIONES' || upper === 'SANCION' || upper === 'CUMPLEAÑOS') {
+    return 'absence';
+  }
+
   return 'operative';
 };
 

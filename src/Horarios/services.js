@@ -130,6 +130,7 @@ const getSkillFromMapOrThrow = (skillsMap, skillId, messageIfMissing = 'Skill no
 
 const validateDayBlocksBusinessRules = ({ blocks, skillsMap, allowedSkillsSet = null }) => {
   let hasRest = false;
+  let hasAbsence = false;
   let consecutiveWorkMinutes = 0;
 
   for (const block of blocks) {
@@ -139,7 +140,7 @@ const validateDayBlocksBusinessRules = ({ blocks, skillsMap, allowedSkillsSet = 
 
     const duration = timeToMinutes(block.end) - timeToMinutes(block.start);
 
-    // 🔥 REST
+    // ✅ REST (descanso semanal) - bloque completo y no se mezcla
     if (skill.type === 'rest') {
       if (hasRest) {
         throw new createError.BadRequest('Solo puede existir un bloque de descanso por día');
@@ -158,9 +159,27 @@ const validateDayBlocksBusinessRules = ({ blocks, skillsMap, allowedSkillsSet = 
       continue;
     }
 
+    // ✅ ABSENCE (VACACIONES / SANCION / CUMPLEAÑOS) - bloque completo y no se mezcla
+    if (skill.type === 'absence') {
+      if (hasAbsence) {
+        throw new createError.BadRequest('Solo puede existir un bloque de ausencia por día');
+      }
+
+      if (blocks.length !== 1) {
+        throw new createError.BadRequest('La ausencia no puede mezclarse con otros bloques');
+      }
+
+      if (block.start !== '08:00' || block.end !== '21:00') {
+        throw new createError.BadRequest('La ausencia debe cubrir la jornada completa (08:00 - 21:00)');
+      }
+
+      hasAbsence = true;
+      consecutiveWorkMinutes = 0;
+      continue;
+    }
+
     // 🔥 Operativas
     if (skill.type === 'operative') {
-      // Validación de skill permitida (solo cuando aplica, por ejemplo en create)
       if (allowedSkillsSet && !allowedSkillsSet.has(skill._id.toString())) {
         throw new createError.BadRequest('Skill no permitida para el agente');
       }
@@ -176,8 +195,12 @@ const validateDayBlocksBusinessRules = ({ blocks, skillsMap, allowedSkillsSet = 
     // 🔥 Break resetea consecutivas
     if (skill.type === 'break') {
       consecutiveWorkMinutes = 0;
+      continue;
     }
-  };
+
+    // 🔒 Si llega un tipo desconocido, fallar (para evitar “colados”)
+    throw new createError.BadRequest(`Tipo de skill no soportado: ${skill.type}`);
+  }
 };
 
 /* =========================
@@ -334,18 +357,18 @@ const update = async (id, body) => {
   if (body.blocks) {
     const validatedBlocks = validateBlocksStructure(body.blocks);
 
-    // Cargar skills de estos bloques en 1 query
+    // SkillsMap de los bloques del día (1 query)
     const skillIds = validatedBlocks.map((b) => b.skillId.toString());
     const skillsMap = await buildSkillsMapFromIds(skillsCollection, skillIds);
 
-    // Validación de 4h y rest (en update NO validas allowedSkills, igual que tu código actual)
+    // Validación día: rest/absence/break/operative + 4h (sin allowedSkills en update)
     validateDayBlocksBusinessRules({
       blocks: validatedBlocks,
       skillsMap,
       allowedSkillsSet: null
     });
 
-    // 🔥 VALIDACIÓN 42H SI ESTÁ PUBLICADO (misma regla)
+    // 🔥 VALIDACIÓN SEMANAL SI ESTÁ PUBLICADO
     if (existing.status === 'publicado') {
       const targetDate = updateData.date || existing.date;
       const { weekStart, weekEnd } = getWeekRange(targetDate.toISOString().split('T')[0]);
@@ -358,32 +381,53 @@ const update = async (id, body) => {
         })
         .toArray();
 
-      // SkillsMap para TODA la semana (para no consultar skill por bloque)
+      // SkillsMap para TODA la semana (1 query)
       const weekSkillIds = weeklyPublished.flatMap((s) =>
         (s._id.toString() === id ? validatedBlocks : s.blocks).map((b) => b.skillId.toString())
       );
       const weekSkillsMap = await buildSkillsMapFromIds(skillsCollection, weekSkillIds);
 
-      let totalMinutes = 0;
+      let totalOperativeMinutes = 0;
+      let absenceDays = 0;
 
       for (const schedule of weeklyPublished) {
         const blocksToUse = schedule._id.toString() === id ? validatedBlocks : schedule.blocks;
 
+        // contar ausencia por DÍA (regla: si existe absence, es bloque único)
+        let dayHasAbsence = false;
+
         for (const b of blocksToUse) {
           const skill = weekSkillsMap[b.skillId.toString()];
-          if (skill && skill.type !== 'break' && skill.type !== 'rest') {
-            totalMinutes += timeToMinutes(b.end) - timeToMinutes(b.start);
+
+          if (!skill) {
+            throw new createError.BadRequest('Skill inválida detectada en una semana publicada');
           }
+
+          if (skill.type === 'absence') {
+            dayHasAbsence = true;
+            continue;
+          }
+
+          if (skill.type === 'operative') {
+            totalOperativeMinutes += timeToMinutes(b.end) - timeToMinutes(b.start);
+          }
+          // break/rest no suman
         }
+
+        if (dayHasAbsence) absenceDays += 1;
       }
 
-      if (totalMinutes !== WEEKLY_REQUIRED_MINUTES) {
+      // ✅ requerido variable: 42h - 7h por día absence
+      const requiredMinutes = WEEKLY_REQUIRED_MINUTES - (absenceDays * 420);
+
+      if (totalOperativeMinutes !== requiredMinutes) {
         throw new createError.BadRequest(
-          `No se puede modificar. La semana publicada debe mantener exactamente ${WEEKLY_REQUIRED_HOURS} horas operativas`
+          `No se puede modificar. La semana publicada debe mantener exactamente ${requiredMinutes / 60} horas operativas`
         );
       }
     }
 
+    // Guardar bloques (skillId a ObjectId)
     updateData.blocks = validatedBlocks.map((b) => ({
       ...b,
       skillId: new ObjectId(b.skillId)
@@ -442,6 +486,7 @@ const publishByDate = async (date) => {
     let totalMinutes = 0;
     let restDayDate = null;
     const uniqueDays = new Set();
+    let absenceDays = 0;
 
     for (const h of schedules) {
       const dayKey = new Date(h.date).toISOString().split('T')[0];
@@ -453,14 +498,16 @@ const publishByDate = async (date) => {
       uniqueDays.add(dayKey);
 
       let hasRest = false;
+      let hasAbsence = false;
 
-      for (const b of h.blocks) {
+            for (const b of h.blocks) {
         const skill = skillsMap[b.skillId.toString()];
 
         if (!skill) {
           throw new createError.BadRequest(`Skill inválida detectada en horario del usuario ${userName}`);
         }
 
+        // ✅ REST (solo)
         if (skill.type === 'rest') {
           if (hasRest) {
             throw new createError.BadRequest(
@@ -475,12 +522,43 @@ const publishByDate = async (date) => {
           }
 
           if (b.start !== '08:00' || b.end !== '21:00') {
-            throw new createError.BadRequest(`El descanso del usuario ${userName} debe cubrir 08:00 - 21:00`);
+            throw new createError.BadRequest(
+              `El descanso del usuario ${userName} debe cubrir 08:00 - 21:00`
+            );
           }
 
           hasRest = true;
           restDayDate = new Date(h.date);
-        } else if (skill.type !== 'break') {
+          continue;
+        }
+
+        // ✅ ABSENCE (solo)
+        if (skill.type === 'absence') {
+          if (hasAbsence) {
+            throw new createError.BadRequest(
+              `El usuario ${userName} tiene múltiples bloques de ausencia el día ${dayKey}`
+            );
+          }
+
+          if (h.blocks.length !== 1) {
+            throw new createError.BadRequest(
+              `La ausencia del usuario ${userName} debe ser un único bloque el día ${dayKey}`
+            );
+          }
+
+          if (b.start !== '08:00' || b.end !== '21:00') {
+            throw new createError.BadRequest(
+              `La ausencia del usuario ${userName} debe cubrir 08:00 - 21:00`
+            );
+          }
+
+          hasAbsence = true;
+          absenceDays += 1;
+          continue;
+        }
+
+        // ⏱ Sumar solo operativas (ni break ni rest ni absence)
+        if (skill.type === 'operative') {
           totalMinutes += timeToMinutes(b.end) - timeToMinutes(b.start);
         }
       }
@@ -490,9 +568,11 @@ const publishByDate = async (date) => {
       throw new createError.BadRequest(`El usuario ${userName} no tiene su día de descanso semanal obligatorio`);
     }
 
-    if (totalMinutes !== WEEKLY_REQUIRED_MINUTES) {
+    const requiredMinutes = WEEKLY_REQUIRED_MINUTES - (absenceDays * 420);
+
+    if (totalMinutes !== requiredMinutes) {
       throw new createError.BadRequest(
-        `El usuario ${userName} tiene ${totalMinutes / 60} horas. Debe tener exactamente ${WEEKLY_REQUIRED_HOURS} horas operativas`
+        `El usuario ${userName} tiene ${totalMinutes / 60} horas. Debe tener exactamente ${requiredMinutes / 60} horas operativas`
       );
     }
 
@@ -605,6 +685,7 @@ const editPublishedWeek = async ({ userId, date, schedules, editedBy }) => {
   let totalMinutes = 0;
   let restDayDate = null;
   const uniqueDays = new Set();
+  let absenceDays = 0;
 
   for (const day of schedules) {
     const scheduleDate = new Date(day.date);
@@ -634,6 +715,18 @@ const editPublishedWeek = async ({ userId, date, schedules, editedBy }) => {
       } else if (skill.type === 'operative') {
         totalMinutes += duration;
       }
+
+      if (skill.type === 'absence') {
+        if (validatedBlocks.length !== 1) {
+          throw new createError.BadRequest('La ausencia no puede mezclarse con otros bloques');
+        }
+
+        if (block.start !== '08:00' || block.end !== '21:00') {
+          throw new createError.BadRequest('La ausencia debe cubrir la jornada completa (08:00 - 21:00)');
+        }
+
+        absenceDays += 1;
+    }
     }
   }
 
@@ -647,9 +740,11 @@ const editPublishedWeek = async ({ userId, date, schedules, editedBy }) => {
     );
   }
 
-  if (totalMinutes !== WEEKLY_REQUIRED_MINUTES) {
+  const requiredMinutes = WEEKLY_REQUIRED_MINUTES - (absenceDays * 420);
+
+  if (totalMinutes !== requiredMinutes) {
     throw new createError.BadRequest(
-      `La semana del agente ${userName} tiene ${totalMinutes / 60} horas operativas. Debe tener exactamente ${WEEKLY_REQUIRED_HOURS} horas`
+      `La semana del agente ${userName} tiene ${totalMinutes / 60} horas operativas. Debe tener exactamente ${requiredMinutes / 60} horas`
     );
   }
 
