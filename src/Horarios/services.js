@@ -126,6 +126,10 @@ const validateBlocksStructure = (blocks) => {
       throw new createError.BadRequest('Bloque inválido: datos incompletos');
     }
 
+        if (!ObjectId.isValid(b.skillId)) {
+      throw new createError.BadRequest('SkillId inválido');
+    }
+
     if (!isValidTimeFormat(b.start) || !isValidTimeFormat(b.end)) {
       throw new createError.BadRequest(`Formato inválido en bloque ${b.start} - ${b.end}`);
     }
@@ -706,7 +710,9 @@ const publishByDate = async (date) => {
     const schedules = groupedByUser[userId];
 
     if (schedules.length !== 7) {
-      throw new createError.BadRequest(`El usuario ${userName} debe tener exactamente 7 días en borrador`);
+      throw new createError.BadRequest(
+        `El usuario ${userName} debe tener exactamente 7 días en borrador`
+      );
     }
 
     let totalMinutes = 0;
@@ -718,7 +724,9 @@ const publishByDate = async (date) => {
       const dayKey = new Date(h.date).toISOString().split('T')[0];
 
       if (uniqueDays.has(dayKey)) {
-        throw new createError.BadRequest(`El usuario ${userName} tiene múltiples horarios el día ${dayKey}`);
+        throw new createError.BadRequest(
+          `El usuario ${userName} tiene múltiples horarios el día ${dayKey}`
+        );
       }
 
       uniqueDays.add(dayKey);
@@ -726,11 +734,13 @@ const publishByDate = async (date) => {
       let hasRest = false;
       let hasAbsence = false;
 
-            for (const b of h.blocks) {
+      for (const b of h.blocks) {
         const skill = skillsMap[b.skillId.toString()];
 
         if (!skill) {
-          throw new createError.BadRequest(`Skill inválida detectada en horario del usuario ${userName}`);
+          throw new createError.BadRequest(
+            `Skill inválida detectada en horario del usuario ${userName}`
+          );
         }
 
         // ✅ REST (solo)
@@ -786,12 +796,23 @@ const publishByDate = async (date) => {
         // ⏱ Sumar solo operativas (ni break ni rest ni absence)
         if (skill.type === 'operative') {
           totalMinutes += timeToMinutes(b.end) - timeToMinutes(b.start);
+          continue;
         }
+
+        if (skill.type === 'break') {
+          continue; // no suma, pero es válido
+        }
+
+        throw new createError.BadRequest(
+          `Tipo de skill no soportado en publishByDate: ${skill.type}`
+        );
       }
     }
 
     if (!restDayDate) {
-      throw new createError.BadRequest(`El usuario ${userName} no tiene su día de descanso semanal obligatorio`);
+      throw new createError.BadRequest(
+        `El usuario ${userName} no tiene su día de descanso semanal obligatorio`
+      );
     }
 
     const requiredMinutes = WEEKLY_REQUIRED_MINUTES - (absenceDays * 420);
@@ -802,7 +823,8 @@ const publishByDate = async (date) => {
       );
     }
 
-    // Regla 3–9 días entre descansos (misma lógica)
+    // ✅ FIX QUIRÚRGICO: Regla 3–9 días entre descansos
+    // (Antes usabas skillsMap de la semana actual; eso puede NO contener la skill REST de semanas anteriores)
     const previousSchedules = await collection
       .find({
         userId: new ObjectId(userId),
@@ -814,9 +836,18 @@ const publishByDate = async (date) => {
 
     let lastRestDate = null;
 
+    // Cargar skills históricas (1 query)
+    const prevSkillIds = previousSchedules.flatMap((s) =>
+      (s.blocks || []).map((b) => b.skillId.toString())
+    );
+
+    const prevSkillsMap = prevSkillIds.length
+      ? await buildSkillsMapFromIds(skillsCollection, prevSkillIds)
+      : {};
+
     for (const schedule of previousSchedules) {
       for (const b of schedule.blocks) {
-        const skill = skillsMap[b.skillId.toString()];
+        const skill = prevSkillsMap[b.skillId.toString()];
         if (skill && skill.type === 'rest') {
           lastRestDate = new Date(schedule.date);
           break;
@@ -826,7 +857,10 @@ const publishByDate = async (date) => {
     }
 
     if (lastRestDate) {
-      const diffDays = Math.floor((restDayDate - lastRestDate) / (1000 * 60 * 60 * 24));
+      const diffDays = Math.floor(
+        (restDayDate - lastRestDate) / (1000 * 60 * 60 * 24)
+      );
+
       if (diffDays < 3 || diffDays > 9) {
         throw new createError.BadRequest(
           `El descanso del usuario ${userName} incumple la regla de 3 a 9 días entre descansos`
