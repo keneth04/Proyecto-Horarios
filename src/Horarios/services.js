@@ -31,8 +31,37 @@ const timeToMinutes = (time) => {
   return h * 60 + m;
 };
 
+const parseStrictISODateOrThrow = (dateString, fieldName = 'Fecha inválida') => {
+  if (typeof dateString !== 'string') {
+    throw new createError.BadRequest(fieldName);
+  }
+
+  const trimmed = dateString.trim();
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+
+  if (!match) {
+    throw new createError.BadRequest(fieldName);
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+
+  const parsedDate = new Date(Date.UTC(year, month - 1, day));
+
+  if (
+    parsedDate.getUTCFullYear() !== year
+    || parsedDate.getUTCMonth() !== month - 1
+    || parsedDate.getUTCDate() !== day
+  ) {
+    throw new createError.BadRequest(fieldName);
+  }
+
+  return parsedDate;
+};
+
 const normalizeDate = (date) => {
-  const d = new Date(date);
+  const d = parseStrictISODateOrThrow(date, 'Fecha inválida, formato esperado YYYY-MM-DD');
   return d.toISOString().split('T')[0];
 };
 
@@ -274,7 +303,7 @@ const create = async (horario) => {
   assertValidObjectId(userId, 'El identificador del horario no es válido');
   assertValidObjectId(createdBy, 'El identificador del horario no es válido');
 
-  const scheduleDate = new Date(date);
+  const scheduleDate = parseStrictISODateOrThrow(date, 'Fecha inválida, formato esperado YYYY-MM-DD');
 
   const startOfDay = new Date(scheduleDate);
   startOfDay.setHours(0, 0, 0, 0);
@@ -351,7 +380,7 @@ const update = async (id, body) => {
   const updateData = {};
 
   if (body.date) {
-    updateData.date = new Date(body.date + 'T00:00:00.000Z');
+    updateData.date = parseStrictISODateOrThrow(body.date, 'Fecha inválida, formato esperado YYYY-MM-DD');
   }
 
   if (body.blocks) {
@@ -447,6 +476,8 @@ const publishByDate = async (date) => {
   const usersCollection = await Database(USERS_COLLECTION);
 
   if (!date) throw new createError.BadRequest('Fecha obligatoria');
+
+  parseStrictISODateOrThrow(date, 'Fecha inválida, formato esperado YYYY-MM-DD');
 
   const { weekStart, weekEnd } = getWeekRange(date);
 
@@ -688,7 +719,7 @@ const editPublishedWeek = async ({ userId, date, schedules, editedBy }) => {
   let absenceDays = 0;
 
   for (const day of schedules) {
-    const scheduleDate = new Date(day.date);
+    const scheduleDate = parseStrictISODateOrThrow(day.date, 'Fecha inválida, formato esperado YYYY-MM-DD');
     const dayKey = scheduleDate.toISOString().split('T')[0];
 
     if (uniqueDays.has(dayKey)) {
@@ -792,7 +823,7 @@ const editPublishedWeek = async ({ userId, date, schedules, editedBy }) => {
       { _id: new ObjectId(day.id), status: 'publicado' },
       {
         $set: {
-          date: new Date(day.date),
+          date: parseStrictISODateOrThrow(day.date, 'Fecha inválida, formato esperado YYYY-MM-DD'),
           blocks: day.blocks.map((b) => ({
             start: b.start,
             end: b.end,
