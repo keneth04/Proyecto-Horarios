@@ -23,6 +23,6 @@ module.exports.AuthMiddleware = (req, res, next) => {
     next();
 
   } catch (error) {
-    next(new createError.Unauthorized('Token inválido o expirado'));
+    next(error);
   }
 };
