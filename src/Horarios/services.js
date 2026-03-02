@@ -12,6 +12,8 @@ const DAY_END = 21 * 60;      // 21:00
 const MIN_BLOCK_DURATION = 30; // minutos
 const WEEKLY_REQUIRED_HOURS = 42;
 const WEEKLY_REQUIRED_MINUTES = WEEKLY_REQUIRED_HOURS * 60;
+const STRICT_ISO_DATE_REGEX = /^(\d{4})-(\d{2})-(\d{2})$/;
+const STRICT_DATE_ERROR_MESSAGE = 'Fecha inválida, formato esperado YYYY-MM-DD';
 
 /* =========================
  * Helpers base
@@ -31,14 +33,51 @@ const timeToMinutes = (time) => {
   return h * 60 + m;
 };
 
+const parseStrictISODateOrThrow = (
+  date,
+  message = STRICT_DATE_ERROR_MESSAGE
+) => {
+  if (typeof date !== 'string') {
+    throw new createError.BadRequest(message);
+  }
+
+  const match = STRICT_ISO_DATE_REGEX.exec(date);
+  if (!match) {
+    throw new createError.BadRequest(message);
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() !== month - 1 ||
+    parsed.getUTCDate() !== day
+  ) {
+    throw new createError.BadRequest(message);
+  }
+
+  return parsed;
+};
+
 const normalizeDate = (date) => {
-  const d = new Date(date);
-  return d.toISOString().split('T')[0];
+  if (typeof date === 'string') {
+    return parseStrictISODateOrThrow(date).toISOString().split('T')[0];
+  }
+
+  if (date instanceof Date && !Number.isNaN(date.getTime())) {
+    return parseStrictISODateOrThrow(date.toISOString().split('T')[0]).toISOString().split('T')[0];
+  }
+
+  throw new createError.BadRequest(STRICT_DATE_ERROR_MESSAGE);
 };
 
 // Semana SÁBADO → VIERNES (UTC)
 const getWeekRange = (dateString) => {
-  const d = new Date(dateString + 'T00:00:00.000Z');
+  const d = parseStrictISODateOrThrow(dateString);
   const day = d.getUTCDay();
 
   const diffToSaturday = (day === 6) ? 0 : day + 1;
@@ -274,13 +313,13 @@ const create = async (horario) => {
   assertValidObjectId(userId, 'El identificador del horario no es válido');
   assertValidObjectId(createdBy, 'El identificador del horario no es válido');
 
-  const scheduleDate = new Date(date);
+  const scheduleDate = parseStrictISODateOrThrow(date);
 
   const startOfDay = new Date(scheduleDate);
-  startOfDay.setHours(0, 0, 0, 0);
+  startOfDay.setUTCHours(0, 0, 0, 0);
 
   const endOfDay = new Date(scheduleDate);
-  endOfDay.setHours(23, 59, 59, 999);
+  endOfDay.setUTCHours(23, 59, 59, 999);
 
   const exists = await collection.findOne({
     userId: new ObjectId(userId),
@@ -351,7 +390,7 @@ const update = async (id, body) => {
   const updateData = {};
 
   if (body.date) {
-    updateData.date = new Date(body.date + 'T00:00:00.000Z');
+    updateData.date = parseStrictISODateOrThrow(body.date);
   }
 
   if (body.blocks) {
@@ -371,7 +410,7 @@ const update = async (id, body) => {
     // 🔥 VALIDACIÓN SEMANAL SI ESTÁ PUBLICADO
     if (existing.status === 'publicado') {
       const targetDate = updateData.date || existing.date;
-      const { weekStart, weekEnd } = getWeekRange(targetDate.toISOString().split('T')[0]);
+      const { weekStart, weekEnd } = getWeekRange(normalizeDate(targetDate));
 
       const weeklyPublished = await collection
         .find({
@@ -448,7 +487,8 @@ const publishByDate = async (date) => {
 
   if (!date) throw new createError.BadRequest('Fecha obligatoria');
 
-  const { weekStart, weekEnd } = getWeekRange(date);
+  const normalizedPublishDate = normalizeDate(date);
+  const { weekStart, weekEnd } = getWeekRange(normalizedPublishDate);
 
   const weeklyDrafts = await collection
     .find({
@@ -639,7 +679,8 @@ const editPublishedWeek = async ({ userId, date, schedules, editedBy }) => {
     throw new createError.BadRequest('Debe enviar exactamente los 7 días de la semana');
   }
 
-  const { weekStart, weekEnd } = getWeekRange(date);
+  const normalizedWeekDate = normalizeDate(date);
+  const { weekStart, weekEnd } = getWeekRange(normalizedWeekDate);
 
   const existingPublished = await collection
     .find({
@@ -688,8 +729,8 @@ const editPublishedWeek = async ({ userId, date, schedules, editedBy }) => {
   let absenceDays = 0;
 
   for (const day of schedules) {
-    const scheduleDate = new Date(day.date);
-    const dayKey = scheduleDate.toISOString().split('T')[0];
+    const scheduleDate = parseStrictISODateOrThrow(day.date);
+    const dayKey = normalizeDate(scheduleDate);
 
     if (uniqueDays.has(dayKey)) {
       throw new createError.BadRequest(`Día duplicado en la semana: ${dayKey}`);
@@ -788,11 +829,13 @@ const editPublishedWeek = async ({ userId, date, schedules, editedBy }) => {
 
   // OK => actualizar los mismos documentos
   for (const day of schedules) {
+    const strictScheduleDate = parseStrictISODateOrThrow(day.date);
+
     await collection.updateOne(
       { _id: new ObjectId(day.id), status: 'publicado' },
       {
         $set: {
-          date: new Date(day.date),
+          date: strictScheduleDate,
           blocks: day.blocks.map((b) => ({
             start: b.start,
             end: b.end,
