@@ -4,6 +4,63 @@ const { Database } = require('../database');
 
 const COLLECTION = 'skills';
 
+const HEX_COLOR_REGEX = /^#([0-9A-F]{3}){1,2}$/i;
+
+const assertValidObjectId = (id) => {
+  if (!ObjectId.isValid(id)) {
+    throw new createError.BadRequest('ID inválido');
+  }
+};
+
+const assertValidHexColor = (color) => {
+  if (!HEX_COLOR_REGEX.test(color)) {
+    throw new createError.BadRequest('Color inválido, debe ser formato HEX (#FFFFFF)');
+  }
+};
+
+const normalizeName = (name) => {
+  const normalized = (name || '').trim();
+  if (!normalized) {
+    throw new createError.BadRequest('El nombre no puede estar vacío');
+  }
+  return normalized;
+};
+
+const inferTypeFromName = (name) => {
+  const upper = name.toUpperCase();
+
+  if (upper === 'BREAK') return 'break';
+  if (upper === 'REST' || upper === 'DESCANSO') return 'rest';
+
+  return 'operative';
+};
+
+const ensureUniqueName = async (collection, name, excludeId = null) => {
+  const query = {
+    name: { $regex: `^${name}$`, $options: 'i' }
+  };
+
+  if (excludeId) {
+    query._id = { $ne: new ObjectId(excludeId) };
+  }
+
+  const existing = await collection.findOne(query);
+  if (existing) {
+    throw new createError.Conflict('Ya existe una skill con ese nombre');
+  }
+};
+
+const ensureSingleActiveByType = async (collection, type) => {
+  if (type !== 'break' && type !== 'rest') return;
+
+  const existing = await collection.findOne({ type, status: 'active' });
+
+  if (existing) {
+    const label = type.toUpperCase();
+    throw new createError.Conflict(`Ya existe una skill ${label} activa`);
+  }
+};
+
 /* 🔹 Obtener todas */
 const getAll = async () => {
   const collection = await Database(COLLECTION);
@@ -12,12 +69,9 @@ const getAll = async () => {
 
 /* 🔹 Obtener por ID */
 const getById = async (id) => {
+  assertValidObjectId(id);
+
   const collection = await Database(COLLECTION);
-
-  if (!ObjectId.isValid(id)) {
-    throw new createError.BadRequest('ID inválido');
-  }
-
   const skill = await collection.findOne({ _id: new ObjectId(id) });
 
   if (!skill) {
@@ -37,65 +91,17 @@ const create = async (body) => {
     throw new createError.BadRequest('Datos incompletos');
   }
 
-  const normalizedName = name.trim();
+  const normalizedName = normalizeName(name);
 
-  if (!normalizedName) {
-    throw new createError.BadRequest('El nombre no puede estar vacío');
-  }
+  assertValidHexColor(color);
 
-  if (!/^#([0-9A-F]{3}){1,2}$/i.test(color)) {
-    throw new createError.BadRequest(
-      'Color inválido, debe ser formato HEX (#FFFFFF)'
-    );
-  }
+  // No duplicados por nombre (case-insensitive)
+  await ensureUniqueName(collection, normalizedName);
 
-  const existingSkill = await collection.findOne({
-    name: { $regex: `^${normalizedName}$`, $options: 'i' }
-  });
+  const type = inferTypeFromName(normalizedName);
 
-  if (existingSkill) {
-    throw new createError.Conflict('Ya existe una skill con ese nombre');
-  }
-
-  const upperName = normalizedName.toUpperCase();
-
-  let type = 'operative';
-
-  if (upperName === 'BREAK') {
-    type = 'break';
-  }
-
-  if (upperName === 'REST' || upperName === 'DESCANSO') {
-    type = 'rest';
-  }
-
-  // 🔒 Solo puede existir 1 BREAK activa
-  if (type === 'break') {
-    const existingBreak = await collection.findOne({
-      type: 'break',
-      status: 'active'
-    });
-
-    if (existingBreak) {
-      throw new createError.Conflict(
-        'Ya existe una skill BREAK activa'
-      );
-    }
-  }
-
-  // 🔒 Solo puede existir 1 REST activa
-  if (type === 'rest') {
-    const existingRest = await collection.findOne({
-      type: 'rest',
-      status: 'active'
-    });
-
-    if (existingRest) {
-      throw new createError.Conflict(
-        'Ya existe una skill REST activa'
-      );
-    }
-  }
+  // Solo una BREAK activa / solo una REST activa
+  await ensureSingleActiveByType(collection, type);
 
   const newSkill = {
     name: normalizedName,
@@ -107,73 +113,47 @@ const create = async (body) => {
   };
 
   const result = await collection.insertOne(newSkill);
-
   return result.insertedId;
 };
 
-
-/* 🔥 Actualizar skill blindada */
 /* 🔥 Actualizar skill blindada */
 const updateSkill = async (id, body) => {
+  assertValidObjectId(id);
+
   const collection = await Database(COLLECTION);
 
-  if (!ObjectId.isValid(id)) {
-    throw new createError.BadRequest('ID inválido');
-  }
-
-  const skill = await collection.findOne({
-    _id: new ObjectId(id)
-  });
-
+  const skill = await collection.findOne({ _id: new ObjectId(id) });
   if (!skill) {
     throw new createError.NotFound('Skill no encontrada');
   }
 
   // ❌ No permitir modificar type jamás
   if (body.type) {
-    throw new createError.BadRequest(
-      'No se puede modificar el tipo de skill'
-    );
+    throw new createError.BadRequest('No se puede modificar el tipo de skill');
   }
 
   // ❌ Si es BREAK o REST no permitir cambiar nombre
   if ((skill.type === 'break' || skill.type === 'rest') && body.name) {
-    throw new createError.BadRequest(
-      'No se puede modificar el nombre de una skill BREAK o REST'
-    );
+    throw new createError.BadRequest('No se puede modificar el nombre de una skill BREAK o REST');
+  }
+
+  if (!body || Object.keys(body).length === 0) {
+    throw new createError.BadRequest('Datos incompletos');
   }
 
   const updateData = {};
 
   if (body.name) {
-    const newName = body.name.trim();
+    const newName = normalizeName(body.name);
 
-    if (!newName) {
-      throw new createError.BadRequest(
-        'El nombre no puede estar vacío'
-      );
-    }
-
-    const duplicate = await collection.findOne({
-      name: { $regex: `^${newName}$`, $options: 'i' },
-      _id: { $ne: new ObjectId(id) }
-    });
-
-    if (duplicate) {
-      throw new createError.Conflict(
-        'Ya existe una skill con ese nombre'
-      );
-    }
+    // Evitar duplicados (excluyendo la skill actual)
+    await ensureUniqueName(collection, newName, id);
 
     updateData.name = newName;
   }
 
   if (body.color) {
-    if (!/^#([0-9A-F]{3}){1,2}$/i.test(body.color)) {
-      throw new createError.BadRequest(
-        'Color inválido, debe ser formato HEX (#FFFFFF)'
-      );
-    }
+    assertValidHexColor(body.color);
     updateData.color = body.color;
   }
 
@@ -191,34 +171,25 @@ const updateSkill = async (id, body) => {
   return { updated: true };
 };
 
-
 /* 🔹 Cambiar estado */
 const changeStatus = async (id, status) => {
-  const collection = await Database(COLLECTION);
-
-  if (!ObjectId.isValid(id)) {
-    throw new createError.BadRequest('ID inválido');
-  }
+  assertValidObjectId(id);
 
   if (!['active', 'inactive'].includes(status)) {
     throw new createError.BadRequest('Estado inválido');
   }
 
-  const skill = await collection.findOne({ _id: new ObjectId(id) });
+  const collection = await Database(COLLECTION);
 
+  const skill = await collection.findOne({ _id: new ObjectId(id) });
   if (!skill) {
     throw new createError.NotFound('Skill no encontrada');
   }
 
- // 🔒 No permitir desactivar BREAK ni REST
-if (
-  (skill.type === 'break' || skill.type === 'rest') &&
-  status === 'inactive'
-) {
-  throw new createError.BadRequest(
-    'No se puede desactivar una skill BREAK o REST'
-  );
-}
+  // 🔒 No permitir desactivar BREAK ni REST
+  if ((skill.type === 'break' || skill.type === 'rest') && status === 'inactive') {
+    throw new createError.BadRequest('No se puede desactivar una skill BREAK o REST');
+  }
 
   await collection.updateOne(
     { _id: new ObjectId(id) },

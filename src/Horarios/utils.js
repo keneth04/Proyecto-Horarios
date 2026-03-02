@@ -38,4 +38,4 @@ const excelGenerator = (products, name, res) => {
 
 module.exports.ProductsUtils = {
     excelGenerator
-};
+}; 

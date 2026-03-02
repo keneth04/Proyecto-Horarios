@@ -8,68 +8,70 @@ const { ActiveUserMiddleware } = require('../middlewares/activeMiddleware');
 const router = express.Router();
 
 module.exports.HorariosAPI = (app) => {
+  // 📌 AGENTE - ver solo sus horarios PUBLICADOS
+  router.get(
+    '/mi-horario',
+    AuthMiddleware,
+    ActiveUserMiddleware,
+    RoleMiddleware(['agente']),
+    HorariosController.getMyHorarios
+  );
 
-  router
+  // 📌 ADMIN - publicar horarios por fecha
+  router.post(
+    '/publicar',
+    AuthMiddleware,
+    RoleMiddleware(['admin']),
+    HorariosController.publishByDate
+  );
 
-    /**
-     * 🔥 Rutas específicas primero
-     */
+  // 📌 ADMIN - editar semana ya publicada
+  router.patch(
+    '/editar-semana-publicada',
+    AuthMiddleware,
+    RoleMiddleware(['admin']),
+    HorariosController.editPublishedWeek
+  );
 
-    // 📌 AGENTE - ver solo sus horarios PUBLICADOS
-    .get('/mi-horario',
-      AuthMiddleware,
-      ActiveUserMiddleware,
-      RoleMiddleware(['agente']),
-      HorariosController.getMyHorarios
-    )
+  // 📌 ADMIN - ver horarios por userId
+  router.get(
+    '/usuario/:userId',
+    AuthMiddleware,
+    RoleMiddleware(['admin']),
+    HorariosController.getHorariosByUser
+  );
 
-    // 📌 ADMIN - publicar horarios por fecha
-    .post('/publicar',
-      AuthMiddleware,
-      RoleMiddleware(['admin']),
-      HorariosController.publishByDate
-    )
+  // 📌 ADMIN - ver todos
+  router.get(
+    '/',
+    AuthMiddleware,
+    RoleMiddleware(['admin']),
+    HorariosController.getHorarios
+  );
 
-    .patch('/editar-semana-publicada',
-      AuthMiddleware,
-      RoleMiddleware(['admin']),
-      HorariosController.editPublishedWeek
-)
+  // 📌 ADMIN - ver por id
+  router.get(
+    '/:id',
+    AuthMiddleware,
+    RoleMiddleware(['admin']),
+    HorariosController.getHorario
+  );
 
-    // 📌 ADMIN - ver horarios por userId
-    .get('/usuario/:userId',
-      AuthMiddleware,
-      RoleMiddleware(['admin']),
-      HorariosController.getHorariosByUser
-    )
+  // 📌 ADMIN - crear
+  router.post(
+    '/',
+    AuthMiddleware,
+    RoleMiddleware(['admin']),
+    HorariosController.createHorario
+  );
 
-    // 📌 ADMIN - ver todos
-    .get('/',
-      AuthMiddleware,
-      RoleMiddleware(['admin']),
-      HorariosController.getHorarios
-    )
-
-    // 📌 ADMIN - ver por id
-    .get('/:id',
-      AuthMiddleware,
-      RoleMiddleware(['admin']),
-      HorariosController.getHorario
-    )
-    
-    // 📌 ADMIN - crear
-    .post('/',
-      AuthMiddleware,
-      RoleMiddleware(['admin']),
-      HorariosController.createHorario
-    )
-
-    // 📌 ADMIN - actualizar
-    .patch('/:id',
-      AuthMiddleware,
-      RoleMiddleware(['admin']),
-      HorariosController.updateHorario 
-    );
+  // 📌 ADMIN - actualizar
+  router.patch(
+    '/:id',
+    AuthMiddleware,
+    RoleMiddleware(['admin']),
+    HorariosController.updateHorario
+  );
 
   app.use('/api/horarios', router);
 };

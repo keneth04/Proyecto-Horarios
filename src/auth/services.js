@@ -1,9 +1,8 @@
 /**
  * AUTH SERVICE
  * -------------
- * Aquí va TODA la lógica de autenticación.
- * NO responde HTTP.
- * SOLO hace lógica de negocio.
+ * Lógica de autenticación.
+ * No maneja HTTP.
  */
 
 const bcrypt = require('bcrypt');
@@ -13,53 +12,81 @@ const { Database } = require('../database');
 const { Config } = require('../config');
 
 const COLLECTION = 'users';
-
-// 🔑 Clave secreta del JWT (debe venir de .env)
 const JWT_SECRET = Config.jwt_secret;
 const JWT_EXPIRES = '8h';
 
 /**
- * LOGIN
+ * 🔎 Valida credenciales básicas
  */
-const login = async ({ email, password }) => {
-
-  // 1️⃣ Validar datos
+const validateCredentialsInput = ({ email, password }) => {
   if (!email || !password) {
     throw new createError.BadRequest('Credenciales incompletas');
   }
+};
 
+/**
+ * 🔎 Busca usuario por email
+ */
+const findUserByEmail = async (email) => {
   const collection = await Database(COLLECTION);
-
-  // 2️⃣ Buscar usuario
   const user = await collection.findOne({ email });
 
   if (!user) {
     throw new createError.Unauthorized('Credenciales inválidas');
   }
 
-  // 3️⃣ Validar si está inactivo
+  return user;
+};
+
+/**
+ * 🔎 Verifica si usuario está activo
+ */
+const validateUserStatus = (user) => {
   if (user.status === 'inactive') {
     throw new createError.Forbidden('Usuario inactivo');
   }
+};
 
-  // 4️⃣ Validar contraseña
-  const validPassword = await bcrypt.compare(password, user.password);
+/**
+ * 🔎 Verifica contraseña
+ */
+const validatePassword = async (password, hashedPassword) => {
+  const isValid = await bcrypt.compare(password, hashedPassword);
 
-  if (!validPassword) {
+  if (!isValid) {
     throw new createError.Unauthorized('Credenciales inválidas');
   }
+};
 
-  // 5️⃣ Crear payload del token
+/**
+ * 🔐 Genera token JWT
+ */
+const generateToken = (user) => {
   const payload = {
     id: user._id,
     role: user.role,
     email: user.email
   };
 
-  // 6️⃣ Generar token
-  const token = jwt.sign(payload, JWT_SECRET, {
+  return jwt.sign(payload, JWT_SECRET, {
     expiresIn: JWT_EXPIRES
   });
+};
+
+/**
+ * 🚀 LOGIN PRINCIPAL
+ */
+const login = async (credentials) => {
+
+  validateCredentialsInput(credentials);
+
+  const user = await findUserByEmail(credentials.email);
+
+  validateUserStatus(user);
+
+  await validatePassword(credentials.password, user.password);
+
+  const token = generateToken(user);
 
   return {
     token,

@@ -1,9 +1,7 @@
-const debug = require('debug')('app:module-horarios-controller');
 const { HorariosService } = require('./services');
 const { Response } = require('../common/response');
 
 module.exports.HorariosController = {
-
   getHorarios: async (req, res, next) => {
     try {
       const horarios = await HorariosService.getAll();
@@ -45,11 +43,9 @@ module.exports.HorariosController = {
 
   createHorario: async (req, res, next) => {
     try {
-      const { body, user } = req;
-
       const horarioData = {
-        ...body,
-        createdBy: user.id
+        ...req.body,
+        createdBy: req.user.id
       };
 
       const insertedId = await HorariosService.create(horarioData);
@@ -65,10 +61,7 @@ module.exports.HorariosController = {
   updateHorario: async (req, res, next) => {
     try {
       const { id } = req.params;
-      const { body } = req;
-
-      const result = await HorariosService.update(id, body);
-
+      const result = await HorariosService.update(id, req.body);
       Response.success(res, 200, 'Horario actualizado correctamente', result);
     } catch (error) {
       next(error);
@@ -79,21 +72,17 @@ module.exports.HorariosController = {
     try {
       const { date } = req.body;
       const result = await HorariosService.publishByDate(date);
-
       Response.success(res, 200, 'Horarios publicados correctamente', result);
     } catch (error) {
       next(error);
     }
   },
 
-
   editPublishedWeek: async (req, res, next) => {
     try {
-      const { body, user } = req;
-
       const result = await HorariosService.editPublishedWeek({
-        ...body,
-        editedBy: user.id
+        ...req.body,
+        editedBy: req.user.id
       });
 
       Response.success(res, 200, 'Semana publicada editada correctamente', result);
@@ -101,6 +90,4 @@ module.exports.HorariosController = {
       next(error);
     }
   }
-
-
 };
