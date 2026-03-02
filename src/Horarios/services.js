@@ -14,6 +14,7 @@ const WEEKLY_REQUIRED_HOURS = 42;
 const WEEKLY_REQUIRED_MINUTES = WEEKLY_REQUIRED_HOURS * 60;
 const STRICT_ISO_DATE_REGEX = /^(\d{4})-(\d{2})-(\d{2})$/;
 const STRICT_DATE_ERROR_MESSAGE = 'Fecha inválida, formato esperado YYYY-MM-DD';
+const ALLOWED_SCHEDULE_STATUSES = ['borrador', 'publicado', 'archivado'];
 
 /* =========================
  * Helpers base
@@ -63,6 +64,24 @@ const parseStrictISODateOrThrow = (
   return parsed;
 };
 
+
+const validateStatusesFilter = (statuses) => {
+  if (!statuses) return ['publicado', 'borrador'];
+
+  if (!Array.isArray(statuses) || statuses.length === 0) {
+    throw new createError.BadRequest('statuses debe tener al menos un estado válido');
+  }
+
+  const cleaned = [...new Set(statuses.map((status) => String(status).trim().toLowerCase()))];
+
+  const invalid = cleaned.filter((status) => !ALLOWED_SCHEDULE_STATUSES.includes(status));
+  if (invalid.length) {
+    throw new createError.BadRequest(`Estados no permitidos: ${invalid.join(', ')}`);
+  }
+
+  return cleaned;
+};
+
 const normalizeDate = (date) => {
   if (typeof date === 'string') {
     return parseStrictISODateOrThrow(date).toISOString().split('T')[0];
@@ -105,6 +124,10 @@ const validateBlocksStructure = (blocks) => {
   const processed = blocks.map((b) => {
     if (!b.start || !b.end || !b.skillId) {
       throw new createError.BadRequest('Bloque inválido: datos incompletos');
+    }
+
+        if (!ObjectId.isValid(b.skillId)) {
+      throw new createError.BadRequest('SkillId inválido');
     }
 
     if (!isValidTimeFormat(b.start) || !isValidTimeFormat(b.end)) {
@@ -293,6 +316,173 @@ const getPublishedByUserId = async (userId) => {
       skill: skillsMap[b.skillId.toString()] || null
     }))
   }));
+};
+
+const buildScheduleQueryByDate = (date, statuses = ['publicado', 'borrador']) => {
+  const scheduleDate = parseStrictISODateOrThrow(date);
+  const startOfDay = new Date(scheduleDate);
+  startOfDay.setUTCHours(0, 0, 0, 0);
+
+  const endOfDay = new Date(scheduleDate);
+  endOfDay.setUTCHours(23, 59, 59, 999);
+
+  return {
+    date: { $gte: startOfDay, $lte: endOfDay },
+    status: { $in: statuses }
+  };
+};
+
+const hydrateSchedulesWithUserAndSkills = async ({ horarios, usersCollection, skillsCollection }) => {
+  if (!horarios.length) return [];
+
+  const userIds = [...new Set(horarios.map((h) => h.userId.toString()))].map((id) => new ObjectId(id));
+  const users = await usersCollection
+    .find({ _id: { $in: userIds } }, { projection: { password: 0 } })
+    .toArray();
+
+  const userMap = {};
+  for (const u of users) userMap[u._id.toString()] = u;
+
+  const skillIds = horarios.flatMap((h) => h.blocks.map((b) => b.skillId.toString()));
+  const skillsMap = await buildSkillsMapFromIds(skillsCollection, skillIds);
+
+  return horarios.map((h) => ({
+    ...h,
+    user: userMap[h.userId.toString()] || null,
+    blocks: h.blocks.map((b) => ({
+      start: b.start,
+      end: b.end,
+      skill: skillsMap[b.skillId.toString()] || null
+    }))
+  }));
+};
+
+const getSchedulesByDate = async ({ date, statuses }) => {
+  const safeStatuses = validateStatusesFilter(statuses);
+  const collection = await Database(COLLECTION);
+  const usersCollection = await Database(USERS_COLLECTION);
+  const skillsCollection = await Database(SKILLS_COLLECTION);
+
+  const query = buildScheduleQueryByDate(date, safeStatuses);
+
+  const horarios = await collection.find(query).sort({ userId: 1, date: 1 }).toArray();
+
+  return hydrateSchedulesWithUserAndSkills({ horarios, usersCollection, skillsCollection });
+};
+
+const getPublishedWeekByUser = async ({ userId, date }) => {
+  assertValidObjectId(userId, 'ID de usuario inválido');
+
+  const collection = await Database(COLLECTION);
+  const usersCollection = await Database(USERS_COLLECTION);
+  const skillsCollection = await Database(SKILLS_COLLECTION);
+
+  const normalizedDate = normalizeDate(date || new Date());
+  const { weekStart, weekEnd } = getWeekRange(normalizedDate);
+
+  const horarios = await collection
+    .find({
+      userId: new ObjectId(userId),
+      status: 'publicado',
+      date: { $gte: weekStart, $lte: weekEnd }
+    })
+    .sort({ date: 1 })
+    .toArray();
+
+  return {
+    week: { from: weekStart, to: weekEnd },
+    schedules: await hydrateSchedulesWithUserAndSkills({ horarios, usersCollection, skillsCollection })
+  };
+};
+
+const getPublishedWeekAllAgents = async ({ date }) => {
+  const collection = await Database(COLLECTION);
+  const usersCollection = await Database(USERS_COLLECTION);
+  const skillsCollection = await Database(SKILLS_COLLECTION);
+
+  const normalizedDate = normalizeDate(date || new Date());
+  const { weekStart, weekEnd } = getWeekRange(normalizedDate);
+
+  const horarios = await collection
+    .find({
+      status: 'publicado',
+      date: { $gte: weekStart, $lte: weekEnd }
+    })
+    .sort({ userId: 1, date: 1 })
+    .toArray();
+
+  const hydrated = await hydrateSchedulesWithUserAndSkills({ horarios, usersCollection, skillsCollection });
+
+  const grouped = {};
+  for (const schedule of hydrated) {
+    const key = schedule.userId.toString();
+    if (!grouped[key]) {
+      grouped[key] = {
+        user: schedule.user,
+        schedules: []
+      };
+    }
+    grouped[key].schedules.push(schedule);
+  }
+
+  return {
+    week: { from: weekStart, to: weekEnd },
+    agents: Object.values(grouped)
+  };
+};
+
+const getStaffingTableByDate = async ({ date, statuses }) => {
+  const safeStatuses = validateStatusesFilter(statuses);
+  const collection = await Database(COLLECTION);
+  const skillsCollection = await Database(SKILLS_COLLECTION);
+
+  const query = buildScheduleQueryByDate(date, safeStatuses);
+  const horarios = await collection.find(query).toArray();
+
+  const skillIds = horarios.flatMap((h) => h.blocks.map((b) => b.skillId.toString()));
+  const skillsMap = await buildSkillsMapFromIds(skillsCollection, skillIds);
+
+  const table = {};
+
+  for (const schedule of horarios) {
+    const userId = schedule.userId.toString();
+
+    for (const block of schedule.blocks) {
+      const startHour = Math.floor(timeToMinutes(block.start) / 60);
+      const endMinutes = timeToMinutes(block.end);
+      const endHourExclusive = Math.ceil(endMinutes / 60);
+      const skillId = block.skillId.toString();
+      const skill = skillsMap[skillId] || null;
+
+      for (let hour = startHour; hour < endHourExclusive; hour++) {
+        const label = `${String(hour).padStart(2, '0')}:00`;
+        if (!table[label]) table[label] = {};
+        if (!table[label][skillId]) {
+          table[label][skillId] = {
+            skill,
+            agentIds: new Set()
+          };
+        }
+        table[label][skillId].agentIds.add(userId);
+      }
+    }
+  }
+
+  const rows = Object.keys(table)
+    .sort()
+    .map((hour) => ({
+      hour,
+      skills: Object.values(table[hour]).map((entry) => ({
+        skill: entry.skill,
+        totalAgents: entry.agentIds.size
+      }))
+    }));
+
+  return {
+    date: normalizeDate(date),
+    statuses: safeStatuses,
+    rows
+  };
 };
 
 /* =========================
@@ -520,7 +710,9 @@ const publishByDate = async (date) => {
     const schedules = groupedByUser[userId];
 
     if (schedules.length !== 7) {
-      throw new createError.BadRequest(`El usuario ${userName} debe tener exactamente 7 días en borrador`);
+      throw new createError.BadRequest(
+        `El usuario ${userName} debe tener exactamente 7 días en borrador`
+      );
     }
 
     let totalMinutes = 0;
@@ -532,7 +724,9 @@ const publishByDate = async (date) => {
       const dayKey = new Date(h.date).toISOString().split('T')[0];
 
       if (uniqueDays.has(dayKey)) {
-        throw new createError.BadRequest(`El usuario ${userName} tiene múltiples horarios el día ${dayKey}`);
+        throw new createError.BadRequest(
+          `El usuario ${userName} tiene múltiples horarios el día ${dayKey}`
+        );
       }
 
       uniqueDays.add(dayKey);
@@ -540,11 +734,13 @@ const publishByDate = async (date) => {
       let hasRest = false;
       let hasAbsence = false;
 
-            for (const b of h.blocks) {
+      for (const b of h.blocks) {
         const skill = skillsMap[b.skillId.toString()];
 
         if (!skill) {
-          throw new createError.BadRequest(`Skill inválida detectada en horario del usuario ${userName}`);
+          throw new createError.BadRequest(
+            `Skill inválida detectada en horario del usuario ${userName}`
+          );
         }
 
         // ✅ REST (solo)
@@ -600,12 +796,23 @@ const publishByDate = async (date) => {
         // ⏱ Sumar solo operativas (ni break ni rest ni absence)
         if (skill.type === 'operative') {
           totalMinutes += timeToMinutes(b.end) - timeToMinutes(b.start);
+          continue;
         }
+
+        if (skill.type === 'break') {
+          continue; // no suma, pero es válido
+        }
+
+        throw new createError.BadRequest(
+          `Tipo de skill no soportado en publishByDate: ${skill.type}`
+        );
       }
     }
 
     if (!restDayDate) {
-      throw new createError.BadRequest(`El usuario ${userName} no tiene su día de descanso semanal obligatorio`);
+      throw new createError.BadRequest(
+        `El usuario ${userName} no tiene su día de descanso semanal obligatorio`
+      );
     }
 
     const requiredMinutes = WEEKLY_REQUIRED_MINUTES - (absenceDays * 420);
@@ -616,7 +823,8 @@ const publishByDate = async (date) => {
       );
     }
 
-    // Regla 3–9 días entre descansos (misma lógica)
+    // ✅ FIX QUIRÚRGICO: Regla 3–9 días entre descansos
+    // (Antes usabas skillsMap de la semana actual; eso puede NO contener la skill REST de semanas anteriores)
     const previousSchedules = await collection
       .find({
         userId: new ObjectId(userId),
@@ -628,9 +836,18 @@ const publishByDate = async (date) => {
 
     let lastRestDate = null;
 
+    // Cargar skills históricas (1 query)
+    const prevSkillIds = previousSchedules.flatMap((s) =>
+      (s.blocks || []).map((b) => b.skillId.toString())
+    );
+
+    const prevSkillsMap = prevSkillIds.length
+      ? await buildSkillsMapFromIds(skillsCollection, prevSkillIds)
+      : {};
+
     for (const schedule of previousSchedules) {
       for (const b of schedule.blocks) {
-        const skill = skillsMap[b.skillId.toString()];
+        const skill = prevSkillsMap[b.skillId.toString()];
         if (skill && skill.type === 'rest') {
           lastRestDate = new Date(schedule.date);
           break;
@@ -640,7 +857,10 @@ const publishByDate = async (date) => {
     }
 
     if (lastRestDate) {
-      const diffDays = Math.floor((restDayDate - lastRestDate) / (1000 * 60 * 60 * 24));
+      const diffDays = Math.floor(
+        (restDayDate - lastRestDate) / (1000 * 60 * 60 * 24)
+      );
+
       if (diffDays < 3 || diffDays > 9) {
         throw new createError.BadRequest(
           `El descanso del usuario ${userName} incumple la regla de 3 a 9 días entre descansos`
@@ -856,6 +1076,10 @@ module.exports.HorariosService = {
   getById,
   getByUserId,
   getPublishedByUserId,
+  getSchedulesByDate,
+  getPublishedWeekByUser,
+  getPublishedWeekAllAgents,
+  getStaffingTableByDate,
   create,
   update,
   publishByDate,
