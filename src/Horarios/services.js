@@ -14,6 +14,7 @@ const WEEKLY_REQUIRED_HOURS = 42;
 const WEEKLY_REQUIRED_MINUTES = WEEKLY_REQUIRED_HOURS * 60;
 const STRICT_ISO_DATE_REGEX = /^(\d{4})-(\d{2})-(\d{2})$/;
 const STRICT_DATE_ERROR_MESSAGE = 'Fecha inválida, formato esperado YYYY-MM-DD';
+const ALLOWED_SCHEDULE_STATUSES = ['borrador', 'publicado', 'archivado'];
 
 /* =========================
  * Helpers base
@@ -61,6 +62,24 @@ const parseStrictISODateOrThrow = (
   }
 
   return parsed;
+};
+
+
+const validateStatusesFilter = (statuses) => {
+  if (!statuses) return ['publicado', 'borrador'];
+
+  if (!Array.isArray(statuses) || statuses.length === 0) {
+    throw new createError.BadRequest('statuses debe tener al menos un estado válido');
+  }
+
+  const cleaned = [...new Set(statuses.map((status) => String(status).trim().toLowerCase()))];
+
+  const invalid = cleaned.filter((status) => !ALLOWED_SCHEDULE_STATUSES.includes(status));
+  if (invalid.length) {
+    throw new createError.BadRequest(`Estados no permitidos: ${invalid.join(', ')}`);
+  }
+
+  return cleaned;
 };
 
 const normalizeDate = (date) => {
@@ -293,6 +312,173 @@ const getPublishedByUserId = async (userId) => {
       skill: skillsMap[b.skillId.toString()] || null
     }))
   }));
+};
+
+const buildScheduleQueryByDate = (date, statuses = ['publicado', 'borrador']) => {
+  const scheduleDate = parseStrictISODateOrThrow(date);
+  const startOfDay = new Date(scheduleDate);
+  startOfDay.setUTCHours(0, 0, 0, 0);
+
+  const endOfDay = new Date(scheduleDate);
+  endOfDay.setUTCHours(23, 59, 59, 999);
+
+  return {
+    date: { $gte: startOfDay, $lte: endOfDay },
+    status: { $in: statuses }
+  };
+};
+
+const hydrateSchedulesWithUserAndSkills = async ({ horarios, usersCollection, skillsCollection }) => {
+  if (!horarios.length) return [];
+
+  const userIds = [...new Set(horarios.map((h) => h.userId.toString()))].map((id) => new ObjectId(id));
+  const users = await usersCollection
+    .find({ _id: { $in: userIds } }, { projection: { password: 0 } })
+    .toArray();
+
+  const userMap = {};
+  for (const u of users) userMap[u._id.toString()] = u;
+
+  const skillIds = horarios.flatMap((h) => h.blocks.map((b) => b.skillId.toString()));
+  const skillsMap = await buildSkillsMapFromIds(skillsCollection, skillIds);
+
+  return horarios.map((h) => ({
+    ...h,
+    user: userMap[h.userId.toString()] || null,
+    blocks: h.blocks.map((b) => ({
+      start: b.start,
+      end: b.end,
+      skill: skillsMap[b.skillId.toString()] || null
+    }))
+  }));
+};
+
+const getSchedulesByDate = async ({ date, statuses }) => {
+  const safeStatuses = validateStatusesFilter(statuses);
+  const collection = await Database(COLLECTION);
+  const usersCollection = await Database(USERS_COLLECTION);
+  const skillsCollection = await Database(SKILLS_COLLECTION);
+
+  const query = buildScheduleQueryByDate(date, safeStatuses);
+
+  const horarios = await collection.find(query).sort({ userId: 1, date: 1 }).toArray();
+
+  return hydrateSchedulesWithUserAndSkills({ horarios, usersCollection, skillsCollection });
+};
+
+const getPublishedWeekByUser = async ({ userId, date }) => {
+  assertValidObjectId(userId, 'ID de usuario inválido');
+
+  const collection = await Database(COLLECTION);
+  const usersCollection = await Database(USERS_COLLECTION);
+  const skillsCollection = await Database(SKILLS_COLLECTION);
+
+  const normalizedDate = normalizeDate(date || new Date());
+  const { weekStart, weekEnd } = getWeekRange(normalizedDate);
+
+  const horarios = await collection
+    .find({
+      userId: new ObjectId(userId),
+      status: 'publicado',
+      date: { $gte: weekStart, $lte: weekEnd }
+    })
+    .sort({ date: 1 })
+    .toArray();
+
+  return {
+    week: { from: weekStart, to: weekEnd },
+    schedules: await hydrateSchedulesWithUserAndSkills({ horarios, usersCollection, skillsCollection })
+  };
+};
+
+const getPublishedWeekAllAgents = async ({ date }) => {
+  const collection = await Database(COLLECTION);
+  const usersCollection = await Database(USERS_COLLECTION);
+  const skillsCollection = await Database(SKILLS_COLLECTION);
+
+  const normalizedDate = normalizeDate(date || new Date());
+  const { weekStart, weekEnd } = getWeekRange(normalizedDate);
+
+  const horarios = await collection
+    .find({
+      status: 'publicado',
+      date: { $gte: weekStart, $lte: weekEnd }
+    })
+    .sort({ userId: 1, date: 1 })
+    .toArray();
+
+  const hydrated = await hydrateSchedulesWithUserAndSkills({ horarios, usersCollection, skillsCollection });
+
+  const grouped = {};
+  for (const schedule of hydrated) {
+    const key = schedule.userId.toString();
+    if (!grouped[key]) {
+      grouped[key] = {
+        user: schedule.user,
+        schedules: []
+      };
+    }
+    grouped[key].schedules.push(schedule);
+  }
+
+  return {
+    week: { from: weekStart, to: weekEnd },
+    agents: Object.values(grouped)
+  };
+};
+
+const getStaffingTableByDate = async ({ date, statuses }) => {
+  const safeStatuses = validateStatusesFilter(statuses);
+  const collection = await Database(COLLECTION);
+  const skillsCollection = await Database(SKILLS_COLLECTION);
+
+  const query = buildScheduleQueryByDate(date, safeStatuses);
+  const horarios = await collection.find(query).toArray();
+
+  const skillIds = horarios.flatMap((h) => h.blocks.map((b) => b.skillId.toString()));
+  const skillsMap = await buildSkillsMapFromIds(skillsCollection, skillIds);
+
+  const table = {};
+
+  for (const schedule of horarios) {
+    const userId = schedule.userId.toString();
+
+    for (const block of schedule.blocks) {
+      const startHour = Math.floor(timeToMinutes(block.start) / 60);
+      const endMinutes = timeToMinutes(block.end);
+      const endHourExclusive = Math.ceil(endMinutes / 60);
+      const skillId = block.skillId.toString();
+      const skill = skillsMap[skillId] || null;
+
+      for (let hour = startHour; hour < endHourExclusive; hour++) {
+        const label = `${String(hour).padStart(2, '0')}:00`;
+        if (!table[label]) table[label] = {};
+        if (!table[label][skillId]) {
+          table[label][skillId] = {
+            skill,
+            agentIds: new Set()
+          };
+        }
+        table[label][skillId].agentIds.add(userId);
+      }
+    }
+  }
+
+  const rows = Object.keys(table)
+    .sort()
+    .map((hour) => ({
+      hour,
+      skills: Object.values(table[hour]).map((entry) => ({
+        skill: entry.skill,
+        totalAgents: entry.agentIds.size
+      }))
+    }));
+
+  return {
+    date: normalizeDate(date),
+    statuses: safeStatuses,
+    rows
+  };
 };
 
 /* =========================
@@ -856,6 +1042,10 @@ module.exports.HorariosService = {
   getById,
   getByUserId,
   getPublishedByUserId,
+  getSchedulesByDate,
+  getPublishedWeekByUser,
+  getPublishedWeekAllAgents,
+  getStaffingTableByDate,
   create,
   update,
   publishByDate,

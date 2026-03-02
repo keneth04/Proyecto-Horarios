@@ -2,6 +2,24 @@ const { HorariosService } = require('./services');
 const { Response } = require('../common/response');
 
 module.exports.HorariosController = {
+  getHorariosByDate: async (req, res, next) => {
+    try {
+      const { date, statuses } = req.query;
+      const parsedStatuses = statuses
+        ? String(statuses).split(',').map((s) => s.trim()).filter(Boolean)
+        : undefined;
+
+      const horarios = await HorariosService.getSchedulesByDate({
+        date,
+        statuses: parsedStatuses
+      });
+
+      Response.success(res, 200, 'Horarios del día', horarios);
+    } catch (error) {
+      next(error);
+    }
+  },
+
   getHorarios: async (req, res, next) => {
     try {
       const horarios = await HorariosService.getAll();
@@ -36,6 +54,46 @@ module.exports.HorariosController = {
       const userId = req.user.id.toString();
       const horarios = await HorariosService.getPublishedByUserId(userId);
       Response.success(res, 200, 'Mis horarios publicados', horarios);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  getPublishedWeekByUser: async (req, res, next) => {
+    try {
+      const { userId } = req.params;
+      const { date } = req.query;
+
+      const week = await HorariosService.getPublishedWeekByUser({ userId, date });
+      Response.success(res, 200, 'Semana publicada del agente', week);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  getPublishedWeekAllAgents: async (req, res, next) => {
+    try {
+      const { date } = req.query;
+      const week = await HorariosService.getPublishedWeekAllAgents({ date });
+      Response.success(res, 200, 'Semana publicada de todos los agentes', week);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  getStaffingTableByDate: async (req, res, next) => {
+    try {
+      const { date, statuses } = req.query;
+      const parsedStatuses = statuses
+        ? String(statuses).split(',').map((s) => s.trim()).filter(Boolean)
+        : undefined;
+
+      const table = await HorariosService.getStaffingTableByDate({
+        date,
+        statuses: parsedStatuses
+      });
+
+      Response.success(res, 200, 'Tabla de dotación por hora y skill', table);
     } catch (error) {
       next(error);
     }
