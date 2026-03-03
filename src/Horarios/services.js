@@ -565,6 +565,7 @@ const create = async (horario) => {
 const update = async (id, body) => {
   const collection = await Database(COLLECTION);
   const skillsCollection = await Database(SKILLS_COLLECTION);
+  const usersCollection = await Database(USERS_COLLECTION);
 
   assertValidObjectId(id);
 
@@ -590,11 +591,18 @@ const update = async (id, body) => {
     const skillIds = validatedBlocks.map((b) => b.skillId.toString());
     const skillsMap = await buildSkillsMapFromIds(skillsCollection, skillIds);
 
+    const user = await usersCollection.findOne({ _id: existing.userId });
+    if (!user) {
+      throw new createError.NotFound('Usuario asociado al horario no existe');
+    }
+
+    const allowedSet = new Set((user.allowedSkills || []).map((skillId) => skillId.toString()));
+
     // Validación día: rest/absence/break/operative + 4h (sin allowedSkills en update)
     validateDayBlocksBusinessRules({
       blocks: validatedBlocks,
       skillsMap,
-      allowedSkillsSet: null
+      allowedSkillsSet: allowedSet
     });
 
     // 🔥 VALIDACIÓN SEMANAL SI ESTÁ PUBLICADO
@@ -891,6 +899,7 @@ const publishByDate = async (date) => {
 const editPublishedWeek = async ({ userId, date, schedules, editedBy }) => {
   const collection = await Database(COLLECTION);
   const skillsCollection = await Database(SKILLS_COLLECTION);
+  const usersCollection = await Database(USERS_COLLECTION);
 
   assertValidObjectId(userId, 'UserId inválido');
   assertValidObjectId(editedBy, 'EditedBy inválido');
@@ -963,7 +972,7 @@ const editPublishedWeek = async ({ userId, date, schedules, editedBy }) => {
     validateDayBlocksBusinessRules({
       blocks: validatedBlocks,
       skillsMap,
-      allowedSkillsSet: null
+      allowedSkillsSet: allowedSet
     });
 
     // total horas operativas + detectar restDay
@@ -991,8 +1000,6 @@ const editPublishedWeek = async ({ userId, date, schedules, editedBy }) => {
     }
   }
 
-  const userCollection = await Database(USERS_COLLECTION);
-  const userData = await userCollection.findOne({ _id: new ObjectId(userId) });
   const userName = userData?.name || 'Usuario desconocido';
 
   if (!restDayDate) {
@@ -1085,3 +1092,9 @@ module.exports.HorariosService = {
   publishByDate,
   editPublishedWeek
 };
+  const userData = await usersCollection.findOne({ _id: new ObjectId(userId) });
+  if (!userData) {
+    throw new createError.NotFound('Usuario no encontrado');
+  }
+
+  const allowedSet = new Set((userData.allowedSkills || []).map((skillId) => skillId.toString()));
