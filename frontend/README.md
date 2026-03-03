@@ -30,3 +30,4 @@ Este proyecto incluye proxy para `/api` hacia `http://localhost:3000` en `vite.c
 Todas las pantallas consumen el contrato:
 - Éxito: `{ success:true, message:string, body:any }`
 - Error: `{ error:true, status:number, message:string }`
+ 

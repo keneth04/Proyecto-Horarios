@@ -3,7 +3,7 @@ const { UsersController } = require('./controller');
 const { UsersService } = require('./services');
 
 const { AuthMiddleware } = require('../middlewares/authMiddleware');
-const { RoleMiddleware } = require('../middlewares/roleMidddleware'); // (mantengo el nombre actual para no romper nada)
+const { RoleMiddleware } = require('../middlewares/roleMiddleware'); // (mantengo el nombre actual para no romper nada)
 
 const router = express.Router();
 

@@ -2,7 +2,7 @@ const express = require('express');
 const { HorariosController } = require('./controller');
 
 const { AuthMiddleware } = require('../middlewares/authMiddleware');
-const { RoleMiddleware } = require('../middlewares/roleMidddleware');
+const { RoleMiddleware } = require('../middlewares/roleMiddleware');
 const { ActiveUserMiddleware } = require('../middlewares/activeMiddleware');
 
 const router = express.Router();

@@ -1,7 +1,7 @@
 const express = require('express');
 const { SkillsController } = require('./controller');
 const { AuthMiddleware } = require('../middlewares/authMiddleware');
-const { RoleMiddleware } = require('../middlewares/roleMidddleware');
+const { RoleMiddleware } = require('../middlewares/roleMiddleware');
 
 const router = express.Router();
 

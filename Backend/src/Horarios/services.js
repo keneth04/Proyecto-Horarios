@@ -972,7 +972,7 @@ const editPublishedWeek = async ({ userId, date, schedules, editedBy }) => {
     validateDayBlocksBusinessRules({
       blocks: validatedBlocks,
       skillsMap,
-      allowedSkillsSet: allowedSet
+      allowedSkillsSet: null
     });
 
     // total horas operativas + detectar restDay
@@ -1092,9 +1092,3 @@ module.exports.HorariosService = {
   publishByDate,
   editPublishedWeek
 };
-  const userData = await usersCollection.findOne({ _id: new ObjectId(userId) });
-  if (!userData) {
-    throw new createError.NotFound('Usuario no encontrado');
-  }
-
-  const allowedSet = new Set((userData.allowedSkills || []).map((skillId) => skillId.toString()));
