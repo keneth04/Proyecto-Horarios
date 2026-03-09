@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { SkillsApi, UsersApi } from '../../api/endpoints';
 import Table from '../../components/Table';
 import { useToast } from '../../components/Toast';
@@ -8,6 +8,8 @@ export default function UsersPage() {
   const [users, setUsers] = useState([]);
   const [skills, setSkills] = useState([]);
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'agente', campaign: '', allowedSkills: [] });
+  const [nameFilter, setNameFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   const { push } = useToast();
 
   const load = async () => {
@@ -51,10 +53,42 @@ export default function UsersPage() {
     }
   };
 
+  const filteredUsers = useMemo(() => {
+    const normalizedNameFilter = nameFilter.trim().toLowerCase();
+
+    return users.filter((user) => {
+      const matchesName = !normalizedNameFilter
+        || String(user.name || '').toLowerCase().includes(normalizedNameFilter);
+
+      const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
+
+      return matchesName && matchesStatus;
+    });
+  }, [users, nameFilter, statusFilter]);
+
   return (
     <section className="space-y-4">
       <h2 className="text-xl font-semibold">Users</h2>
       <form onSubmit={create} className="space-y-2 rounded bg-white p-3 shadow">
+
+        <div className="grid gap-2 rounded bg-white p-3 shadow md:grid-cols-2">
+        <input
+          className="rounded border px-2 py-1"
+          placeholder="Buscar por nombre"
+          value={nameFilter}
+          onChange={(e) => setNameFilter(e.target.value)}
+        />
+        <select
+          className="rounded border px-2 py-1"
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+        >
+          <option value="all">Todos</option>
+          <option value="active">Activo</option>
+          <option value="inactive">Inactivo</option>
+        </select>
+      </div>
+
         <div className="grid grid-cols-5 gap-2">
           <input className="rounded border px-2 py-1" placeholder="Nombre" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           <input className="rounded border px-2 py-1" placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
@@ -83,7 +117,7 @@ export default function UsersPage() {
           { key: 'status', label: 'Estado' },
           { key: 'actions', label: 'Acciones', render: (row) => <button onClick={() => toggleStatus(row)} className="rounded border px-2 py-1">Cambiar estado</button> }
         ]}
-        rows={users}
+        rows={filteredUsers}
       />
     </section>
   );
