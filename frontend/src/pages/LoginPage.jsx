@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect , useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthApi } from '../api/endpoints';
 import { useAuth } from '../auth/AuthContext';
@@ -10,23 +10,53 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [lockUntil, setLockUntil] = useState(null);
+  const [now, setNow] = useState(Date.now());
   const { login } = useAuth();
   const { push } = useToast();
   const navigate = useNavigate();
 
+  useEffect(() => {
+      if (!lockUntil) return undefined;
+
+      const intervalId = window.setInterval(() => {
+        setNow(Date.now());
+      }, 1000);
+
+      return () => window.clearInterval(intervalId);
+    }, [lockUntil]);
+
+    useEffect(() => {
+      if (lockUntil && now >= lockUntil) {
+        setLockUntil(null);
+        setErrorMessage('');
+      }
+    }, [lockUntil, now]);
+
   const onSubmit = async (event) => {
     event.preventDefault();
     setLoading(true);
+    setErrorMessage('');
     try {
       const { data } = await AuthApi.login({ email, password });
       login(data.body.token, data.body.user);
       navigate(data.body.user.role === 'admin' ? '/admin' : '/agent', { replace: true });
     } catch (error) {
-      push(getErrorMessage(error), 'error');
+      const message = getErrorMessage(error);
+      const lockMatch = message.match(/Cuenta bloqueada, intenta nuevamente en (\d+) minutos/i);
+      if (lockMatch) {
+        const lockMinutes = Number(lockMatch[1]);
+        setLockUntil(Date.now() + lockMinutes * 60 * 1000);
+      }
+      setErrorMessage(message);
+      push(message, 'error')
     } finally {
       setLoading(false);
     }
   };
+
+  const isLocked = Boolean(lockUntil && now < lockUntil);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
@@ -43,7 +73,13 @@ export default function LoginPage() {
           </Link>
         </div>
 
-        <button disabled={loading} className="w-full rounded bg-slate-900 px-3 py-2 text-white">
+          {errorMessage ? (
+          <p className="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {errorMessage}
+          </p>
+        ) : null}
+        
+        <button disabled={loading || isLocked} className="w-full rounded bg-slate-900 px-3 py-2 text-white disabled:cursor-not-allowed disabled:opacity-70">
           {loading ? <Spinner label="Ingresando..." /> : 'Entrar'}
         </button>
       </form>

@@ -19,6 +19,8 @@ const JWT_SECRET = Config.jwt_secret;
 const JWT_EXPIRES = '8h';
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 const MIN_PASSWORD_LENGTH = 8;
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCK_TIME_MS = 10 * 60 * 1000;
 
 /**
  * 🔎 Valida credenciales básicas
@@ -43,6 +45,27 @@ const findUserByEmail = async (email) => {
   return user;
 };
 
+const getRemainingLockMinutes = (lockUntil) => {
+  const remainingMs = new Date(lockUntil).getTime() - Date.now();
+  if (remainingMs <= 0) {
+    return 0;
+  }
+
+  return Math.ceil(remainingMs / (60 * 1000));
+};
+
+const ensureUserNotLocked = (user) => {
+  if (!user.lockUntil) {
+    return;
+  }
+
+  const remainingMinutes = getRemainingLockMinutes(user.lockUntil);
+
+  if (remainingMinutes > 0) {
+    throw new createError.Locked(`Cuenta bloqueada, intenta nuevamente en ${remainingMinutes} minutos`);
+  }
+};
+
 /**
  * 🔎 Verifica si usuario está activo
  */
@@ -58,10 +81,55 @@ const validateUserStatus = (user) => {
 const validatePassword = async (password, hashedPassword) => {
   const isValid = await bcrypt.compare(password, hashedPassword);
 
-  if (!isValid) {
-    throw new createError.Unauthorized('Credenciales inválidas');
-  }
+  return isValid;
 };
+
+const registerFailedLoginAttempt = async (userId, currentAttempts = 0) => {
+  const collection = await Database(COLLECTION);
+  const nextAttempts = currentAttempts + 1;
+  const lockUntil = nextAttempts >= MAX_LOGIN_ATTEMPTS
+    ? new Date(Date.now() + LOCK_TIME_MS)
+    : null;
+
+  const updatePayload = {
+    loginAttempts: nextAttempts,
+    updatedAt: new Date()
+  };
+
+  if (lockUntil) {
+    updatePayload.lockUntil = lockUntil;
+  }
+
+  await collection.updateOne(
+    { _id: new ObjectId(userId) },
+    { $set: updatePayload }
+  );
+
+  if (lockUntil) {
+    const minutes = getRemainingLockMinutes(lockUntil);
+    throw new createError.Locked(`Cuenta bloqueada, intenta nuevamente en ${minutes} minutos`);
+  }
+
+  throw new createError.Unauthorized('Credenciales inválidas');
+};
+
+const resetLoginAttempts = async (userId) => {
+  const collection = await Database(COLLECTION);
+
+  await collection.updateOne(
+    { _id: new ObjectId(userId) },
+    {
+      $set: {
+        loginAttempts: 0,
+        updatedAt: new Date()
+      },
+      $unset: {
+        lockUntil: ''
+      }
+    }
+  );
+};
+
 
 const ensureStrongPassword = (password) => {
   if (!password) {
@@ -173,9 +241,16 @@ const login = async (credentials) => {
 
   const user = await findUserByEmail(credentials.email);
 
+  ensureUserNotLocked(user);
+
   validateUserStatus(user);
 
-  await validatePassword(credentials.password, user.password);
+  const validPassword = await validatePassword(credentials.password, user.password);
+  if (!validPassword) {
+    await registerFailedLoginAttempt(user._id, user.loginAttempts || 0);
+  }
+
+  await resetLoginAttempts(user._id);
 
   const token = generateToken(user);
 
