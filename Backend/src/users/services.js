@@ -46,7 +46,22 @@ const validateUpdatePayload = (body) => {
   if (body.email) {
     assertValidEmail(body.email);
   }
+
+   if (body.campaign !== undefined && typeof body.campaign !== 'string') {
+    throw new createError.BadRequest('campaign debe ser un texto');
+  }
 };
+
+const normalizeCampaign = (campaign) => {
+  if (typeof campaign !== 'string') return '';
+  return campaign.trim();
+  
+};
+
+const normalizeUserCampaign = (user) => ({
+  ...user,
+  campaign: normalizeCampaign(user.campaign)
+});
 
 const validateAndNormalizeAllowedSkills = async (allowedSkills) => {
   if (allowedSkills === undefined) return undefined;
@@ -92,7 +107,8 @@ const validateAndNormalizeAllowedSkills = async (allowedSkills) => {
 
 const getAll = async () => {
   const collection = await Database(COLLECTION);
-  return collection.find({}, { projection: { password: 0 } }).toArray();
+  const users = await collection.find({}, { projection: { password: 0 } }).toArray();
+  return users.map(normalizeUserCampaign);
 };
 
 const getById = async (id) => {
@@ -108,7 +124,7 @@ const getById = async (id) => {
     throw new createError.NotFound('Usuario no encontrado');
   }
 
-  return user;
+  return normalizeUserCampaign(user);
 };
 
 const getByEmail = async (email) => {
@@ -123,7 +139,7 @@ const getByEmail = async (email) => {
 const create = async (body) => {
   const collection = await Database(COLLECTION);
 
-  const { name, email, password, role: bodyRole } = body;
+  const { name, email, password, role: bodyRole, campaign } = body;
 
   if (!name || !email || !password) {
     throw new createError.BadRequest('Datos incompletos');
@@ -151,6 +167,7 @@ const create = async (body) => {
     password: hashedPassword,
     role: finalRole,
     status: 'active',
+    campaign: normalizeCampaign(campaign),
     allowedSkills: [],
     createdAt: new Date()
   };
@@ -170,6 +187,10 @@ const updateUser = async (id, body) => {
 
   // password
   payload = await hashPasswordIfPresent(payload);
+
+  if (payload.campaign !== undefined) {
+    payload.campaign = normalizeCampaign(payload.campaign);
+  }
 
   // allowedSkills
   if (payload.allowedSkills !== undefined) {
