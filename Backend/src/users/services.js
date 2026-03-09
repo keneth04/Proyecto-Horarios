@@ -152,6 +152,8 @@ const create = async (body) => {
     role: finalRole,
     status: 'active',
     allowedSkills: [],
+    loginAttempts: 0,
+    lockUntil: null,
     createdAt: new Date()
   };
 
