@@ -26,6 +26,23 @@ export const HorariosApi = {
   publish: (date) => api.post('/horarios/publicar', { date }),
   weekByUser: ({ userId, date }) => api.get(`/horarios/semana-publicada/usuario/${userId}?date=${date}`),
   editWeek: (payload) => api.patch('/horarios/editar-semana-publicada', payload),
-  staffingByDay: ({ date, statuses }) => api.get(`/horarios/dotacion/dia?date=${date}&statuses=${statuses.join(',')}`),
+  staffingByDay: ({ date, statuses, mode, campaign }) => {
+    const params = new URLSearchParams();
+    params.set('date', date);
+
+    if (Array.isArray(statuses) && statuses.length > 0) {
+      params.set('statuses', statuses.join(','));
+    }
+
+    if (mode) {
+      params.set('mode', mode);
+    }
+
+    if (campaign !== undefined && campaign !== null && String(campaign).trim() !== '') {
+      params.set('campaign', String(campaign).trim());
+    }
+
+    return api.get(`/horarios/dotacion/dia?${params.toString()}`);
+  },
   mySchedule: () => api.get('/horarios/mi-horario')
 };

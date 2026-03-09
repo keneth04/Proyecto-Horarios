@@ -82,6 +82,41 @@ const validateStatusesFilter = (statuses) => {
   return cleaned;
 };
 
+const resolveStatusesFromMode = ({ statuses, mode }) => {
+  if (statuses) {
+    return validateStatusesFilter(statuses);
+  }
+
+  if (!mode) {
+    return ['publicado', 'borrador'];
+  }
+
+  const normalizedMode = String(mode).trim().toLowerCase();
+
+  if (normalizedMode === 'published') {
+    return ['publicado'];
+  }
+
+  if (normalizedMode === 'draft') {
+    return ['borrador'];
+  }
+
+  throw new createError.BadRequest('mode inválido, valores permitidos: published | draft');
+};
+
+const normalizeCampaignFilter = (campaign) => {
+  if (campaign === undefined || campaign === null) {
+    return '';
+  }
+
+  if (typeof campaign !== 'string') {
+    throw new createError.BadRequest('campaign debe ser un texto');
+  }
+
+  return campaign.trim().toLowerCase();
+};
+
+
 const normalizeDate = (date) => {
   if (typeof date === 'string') {
     return parseStrictISODateOrThrow(date).toISOString().split('T')[0];
@@ -431,21 +466,49 @@ const getPublishedWeekAllAgents = async ({ date }) => {
   };
 };
 
-const getStaffingTableByDate = async ({ date, statuses }) => {
-  const safeStatuses = validateStatusesFilter(statuses);
+const getStaffingTableByDate = async ({ date, statuses, mode, campaign }) => {
+  const safeStatuses = resolveStatusesFromMode({ statuses, mode });
+  const campaignFilter = normalizeCampaignFilter(campaign);
+
   const collection = await Database(COLLECTION);
+  const usersCollection = await Database(USERS_COLLECTION);
   const skillsCollection = await Database(SKILLS_COLLECTION);
 
   const query = buildScheduleQueryByDate(date, safeStatuses);
   const horarios = await collection.find(query).toArray();
 
-  const skillIds = horarios.flatMap((h) => h.blocks.map((b) => b.skillId.toString()));
+  const userIds = [...new Set(horarios.map((h) => h.userId.toString()))];
+  const users = userIds.length
+    ? await usersCollection
+      .find(
+        { _id: { $in: userIds.map((id) => new ObjectId(id)) } },
+        { projection: { _id: 1, name: 1, campaign: 1 } }
+      )
+      .toArray()
+    : [];
+
+  const usersMap = users.reduce((acc, user) => {
+    acc[user._id.toString()] = user;
+    return acc;
+  }, {});
+
+  const filteredSchedules = campaignFilter
+    ? horarios.filter((schedule) => {
+      const user = usersMap[schedule.userId.toString()];
+      const userCampaign = String(user?.campaign || '').trim().toLowerCase();
+      return userCampaign === campaignFilter;
+    })
+    : horarios;
+
+  const skillIds = filteredSchedules.flatMap((h) => h.blocks.map((b) => b.skillId.toString()));
+
   const skillsMap = await buildSkillsMapFromIds(skillsCollection, skillIds);
 
   const table = {};
 
-  for (const schedule of horarios) {
+  for (const schedule of filteredSchedules) {
     const userId = schedule.userId.toString();
+    const user = usersMap[userId];
 
     for (const block of schedule.blocks) {
       const startHour = Math.floor(timeToMinutes(block.start) / 60);
@@ -460,10 +523,18 @@ const getStaffingTableByDate = async ({ date, statuses }) => {
         if (!table[label][skillId]) {
           table[label][skillId] = {
             skill,
-            agentIds: new Set()
+            agentsMap: new Map()
           };
         }
-        table[label][skillId].agentIds.add(userId);
+
+        if (!table[label][skillId].agentsMap.has(userId)) {
+          table[label][skillId].agentsMap.set(userId, {
+            id: userId,
+            name: user?.name || 'Sin nombre',
+            campaign: String(user?.campaign || '').trim()
+          });
+        }
+
       }
     }
   }
@@ -472,14 +543,20 @@ const getStaffingTableByDate = async ({ date, statuses }) => {
     .sort()
     .map((hour) => ({
       hour,
-      skills: Object.values(table[hour]).map((entry) => ({
-        skill: entry.skill,
-        totalAgents: entry.agentIds.size
-      }))
+      skills: Object.values(table[hour]).map((entry) => {
+        const agents = Array.from(entry.agentsMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+        return {
+          skill: entry.skill,
+          totalAgents: agents.length,
+          agents
+        };
+      })
     }));
 
   return {
     date: normalizeDate(date),
+    mode: mode ? String(mode).trim().toLowerCase() : null,
+    campaign: campaign || '',
     statuses: safeStatuses,
     rows
   };

@@ -83,14 +83,16 @@ module.exports.HorariosController = {
 
   getStaffingTableByDate: async (req, res, next) => {
     try {
-      const { date, statuses } = req.query;
+      const { date, statuses, mode, campaign } = req.query;
       const parsedStatuses = statuses
         ? String(statuses).split(',').map((s) => s.trim()).filter(Boolean)
         : undefined;
 
       const table = await HorariosService.getStaffingTableByDate({
         date,
-        statuses: parsedStatuses
+        statuses: parsedStatuses,
+        mode,
+        campaign
       });
 
       Response.success(res, 200, 'Tabla de dotación por hora y skill', table);
