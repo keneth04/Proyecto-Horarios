@@ -31,10 +31,10 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
       <form onSubmit={onSubmit} className="w-full max-w-sm rounded bg-white p-5 shadow">
-        <h1 className="mb-4 text-xl font-semibold">Ingreso</h1>
-        <label className="mb-2 block text-sm">Email</label>
+        <h1 className="mb-4 text-xl font-semibold">Inicio de Sesion</h1>
+        <label className="mb-2 block text-sm">Correo</label>
         <input value={email} onChange={(e) => setEmail(e.target.value)} className="mb-3 w-full rounded border px-3 py-2" />
-        <label className="mb-2 block text-sm">Password</label>
+        <label className="mb-2 block text-sm">Contraseña</label>
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="mb-4 w-full rounded border px-3 py-2" />
         <button disabled={loading} className="w-full rounded bg-slate-900 px-3 py-2 text-white">
           {loading ? <Spinner label="Ingresando..." /> : 'Entrar'}
