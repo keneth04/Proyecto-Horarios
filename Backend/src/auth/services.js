@@ -8,12 +8,17 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const createError = require('http-errors');
+const crypto = require('crypto');
+const { ObjectId } = require('mongodb');
 const { Database } = require('../database');
 const { Config } = require('../config');
+const { sendPasswordResetEmail } = require('./mailer');
 
 const COLLECTION = 'users';
 const JWT_SECRET = Config.jwt_secret;
 const JWT_EXPIRES = '8h';
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
+const MIN_PASSWORD_LENGTH = 8;
 
 /**
  * 🔎 Valida credenciales básicas
@@ -58,6 +63,16 @@ const validatePassword = async (password, hashedPassword) => {
   }
 };
 
+const ensureStrongPassword = (password) => {
+  if (!password) {
+    throw new createError.BadRequest('La nueva contraseña es obligatoria');
+  }
+
+  if (typeof password !== 'string' || password.trim().length < MIN_PASSWORD_LENGTH) {
+    throw new createError.BadRequest(`La nueva contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres`);
+  }
+};
+
 /**
  * 🔐 Genera token JWT
  */
@@ -71,6 +86,82 @@ const generateToken = (user) => {
   return jwt.sign(payload, JWT_SECRET, {
     expiresIn: JWT_EXPIRES
   });
+};
+
+const forgotPassword = async ({ email }) => {
+  if (!email) {
+    throw new createError.BadRequest('El correo es obligatorio');
+  }
+
+  const collection = await Database(COLLECTION);
+  const user = await collection.findOne({ email });
+
+  if (!user) {
+    return { ok: true };
+  }
+
+  const rawToken = crypto.randomBytes(32).toString('hex');
+  const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+  const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MS);
+
+  await collection.updateOne(
+    { _id: new ObjectId(user._id) },
+    {
+      $set: {
+        resetPasswordTokenHash: tokenHash,
+        resetPasswordExpiresAt: expiresAt,
+        updatedAt: new Date()
+      }
+    }
+  );
+
+  const resetBaseUrl = process.env.FRONTEND_RESET_PASSWORD_URL || 'http://localhost:5173/reset-password';
+  const resetUrl = `${resetBaseUrl}?token=${rawToken}`;
+
+  await sendPasswordResetEmail({
+    to: email,
+    resetUrl
+  });
+
+  return { ok: true };
+};
+
+const resetPassword = async ({ token, newPassword }) => {
+  if (!token) {
+    throw new createError.BadRequest('El token de recuperación es obligatorio');
+  }
+
+  ensureStrongPassword(newPassword);
+
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  const collection = await Database(COLLECTION);
+
+  const user = await collection.findOne({
+    resetPasswordTokenHash: tokenHash,
+    resetPasswordExpiresAt: { $gt: new Date() }
+  });
+
+  if (!user) {
+    throw new createError.BadRequest('El token es inválido o expiró. Solicita una nueva recuperación');
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+  await collection.updateOne(
+    { _id: new ObjectId(user._id) },
+    {
+      $set: {
+        password: hashedPassword,
+        updatedAt: new Date()
+      },
+      $unset: {
+        resetPasswordTokenHash: '',
+        resetPasswordExpiresAt: ''
+      }
+    }
+  );
+
+  return { updated: true };
 };
 
 /**
@@ -100,5 +191,7 @@ const login = async (credentials) => {
 };
 
 module.exports.AuthService = {
-  login
+  login,
+  forgotPassword,
+  resetPassword
 };
