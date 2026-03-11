@@ -182,6 +182,11 @@ const updateUser = async (id, body) => {
 
   const collection = await Database(COLLECTION);
 
+  const existingUser = await collection.findOne({ _id: new ObjectId(id) });
+  if (!existingUser) {
+    throw new createError.NotFound('Usuario no encontrado');
+  }
+
   // Construimos payload sin mutar "body" directo
   let payload = { ...body };
 
@@ -190,6 +195,20 @@ const updateUser = async (id, body) => {
 
   if (payload.campaign !== undefined) {
     payload.campaign = normalizeCampaign(payload.campaign);
+  }
+
+  if (payload.email) {
+    const normalizedEmail = String(payload.email).trim().toLowerCase();
+    const userWithSameEmail = await collection.findOne({
+      email: normalizedEmail,
+      _id: { $ne: new ObjectId(id) }
+    });
+
+    if (userWithSameEmail) {
+      throw new createError.Conflict('El email ya está en uso por otro usuario');
+    }
+
+    payload.email = normalizedEmail;
   }
 
   // allowedSkills
@@ -204,9 +223,6 @@ const updateUser = async (id, body) => {
     { $set: payload }
   );
 
-  if (result.matchedCount === 0) {
-    throw new createError.NotFound('Usuario no encontrado');
-  }
 
   return { modifiedCount: result.modifiedCount };
 };

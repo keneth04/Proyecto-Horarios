@@ -1,15 +1,28 @@
 import { useEffect, useMemo, useState } from 'react';
 import { SkillsApi, UsersApi } from '../../api/endpoints';
 import Table from '../../components/Table';
+import Modal from '../../components/Modal';
 import { useToast } from '../../components/Toast';
 import { getErrorMessage } from '../../utils/helpers';
+
+const EMPTY_CREATE_FORM = {
+  name: '',
+  email: '',
+  password: '',
+  role: 'agente',
+  campaign: '',
+  allowedSkills: []
+};
 
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
   const [skills, setSkills] = useState([]);
-  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'agente', campaign: '', allowedSkills: [] });
+  const [form, setForm] = useState(EMPTY_CREATE_FORM);
   const [nameFilter, setNameFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [editForm, setEditForm] = useState({ name: '', email: '', role: 'agente', campaign: '', allowedSkills: [] });
   const { push } = useToast();
 
   const load = async () => {
@@ -29,6 +42,7 @@ export default function UsersPage() {
     try {
       await UsersApi.create(form);
       push('Usuario creado');
+      setForm(EMPTY_CREATE_FORM);
       load();
     } catch (error) {
       push(getErrorMessage(error), 'error');
@@ -43,6 +57,51 @@ export default function UsersPage() {
         : [...prev.allowedSkills, id]
     }));
   };
+
+  const toggleEditSkill = (id) => {
+    setEditForm((prev) => ({
+      ...prev,
+      allowedSkills: prev.allowedSkills.includes(id)
+        ? prev.allowedSkills.filter((sid) => sid !== id)
+        : [...prev.allowedSkills, id]
+    }));
+  };
+
+  const openEdit = (user) => {
+    setEditingUser(user);
+    setEditForm({
+      name: user.name || '',
+      email: user.email || '',
+      role: user.role || 'agente',
+      campaign: user.campaign || '',
+      allowedSkills: Array.isArray(user.allowedSkills)
+        ? user.allowedSkills.map((skillId) => String(skillId))
+        : []
+    });
+    setIsEditOpen(true);
+  };
+
+
+  const closeEdit = () => {
+    setIsEditOpen(false);
+    setEditingUser(null);
+    setEditForm({ name: '', email: '', role: 'agente', campaign: '', allowedSkills: [] });
+  };
+
+  const submitEdit = async (e) => {
+    e.preventDefault();
+    if (!editingUser?._id) return;
+
+    try {
+      await UsersApi.update(editingUser._id, editForm);
+      push('Usuario actualizado');
+      closeEdit();
+      load();
+    } catch (error) {
+      push(getErrorMessage(error), 'error');
+    }
+  };
+
 
   const toggleStatus = async (user) => {
     try {
@@ -73,21 +132,21 @@ export default function UsersPage() {
 
         <div className="grid gap-2 rounded bg-white p-3 shadow md:grid-cols-2">
         <input
-          className="rounded border px-2 py-1"
-          placeholder="Buscar por nombre"
-          value={nameFilter}
-          onChange={(e) => setNameFilter(e.target.value)}
-        />
-        <select
-          className="rounded border px-2 py-1"
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-        >
-          <option value="all">Todos</option>
-          <option value="active">Activo</option>
-          <option value="inactive">Inactivo</option>
-        </select>
-      </div>
+            className="rounded border px-2 py-1"
+            placeholder="Buscar por nombre"
+            value={nameFilter}
+            onChange={(e) => setNameFilter(e.target.value)}
+          />
+          <select
+            className="rounded border px-2 py-1"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="all">Todos</option>
+            <option value="active">Activo</option>
+            <option value="inactive">Inactivo</option>
+          </select>
+        </div>
 
         <div className="grid grid-cols-5 gap-2">
           <input className="rounded border px-2 py-1" placeholder="Nombre" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
@@ -115,10 +174,70 @@ export default function UsersPage() {
           { key: 'role', label: 'Rol' },
           { key: 'campaign', label: 'Campaña', render: (row) => row.campaign || 'Sin campaña' },
           { key: 'status', label: 'Estado' },
-          { key: 'actions', label: 'Acciones', render: (row) => <button onClick={() => toggleStatus(row)} className="rounded border px-2 py-1">Cambiar estado</button> }
+          {
+            key: 'actions',
+            label: 'Acciones',
+            render: (row) => (
+              <div className="flex gap-2">
+                <button onClick={() => openEdit(row)} className="rounded border px-2 py-1">Editar</button>
+                <button onClick={() => toggleStatus(row)} className="rounded border px-2 py-1">Cambiar estado</button>
+              </div>
+            )
+          }
         ]}
         rows={filteredUsers}
       />
+
+      <Modal open={isEditOpen} title="Editar usuario" onClose={closeEdit}>
+        <form onSubmit={submitEdit} className="space-y-3">
+          <div className="grid gap-2 md:grid-cols-2">
+            <input
+              className="rounded border px-2 py-1"
+              placeholder="Nombre"
+              value={editForm.name}
+              onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+            />
+            <input
+              className="rounded border px-2 py-1"
+              placeholder="Email"
+              value={editForm.email}
+              onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+            />
+            <select
+              className="rounded border px-2 py-1"
+              value={editForm.role}
+              onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
+            >
+              <option value="agente">agente</option>
+              <option value="admin">admin</option>
+            </select>
+            <input
+              className="rounded border px-2 py-1"
+              placeholder="Campaña"
+              value={editForm.campaign}
+              onChange={(e) => setEditForm({ ...editForm, campaign: e.target.value })}
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {skills.map((skill) => (
+              <label key={skill._id} className="flex items-center gap-1 rounded border px-2 py-1">
+                <input
+                  type="checkbox"
+                  checked={editForm.allowedSkills.includes(skill._id)}
+                  onChange={() => toggleEditSkill(skill._id)}
+                />
+                {skill.name}
+              </label>
+            ))}
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={closeEdit} className="rounded border px-3 py-2">Cancelar</button>
+            <button className="rounded bg-slate-900 px-3 py-2 text-white">Guardar cambios</button>
+          </div>
+        </form>
+      </Modal>
     </section>
   );
 }
