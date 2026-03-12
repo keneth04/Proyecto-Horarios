@@ -101,6 +101,28 @@ module.exports.HorariosController = {
     }
   },
 
+  
+  getWeeklyHoursReport: async (req, res, next) => {
+    try {
+      const { date, statuses, mode, campaign } = req.query;
+      const parsedStatuses = statuses
+        ? String(statuses).split(',').map((s) => s.trim()).filter(Boolean)
+        : undefined;
+
+      const report = await HorariosService.getWeeklyHoursReport({
+        date,
+        statuses: parsedStatuses,
+        mode,
+        campaign
+      });
+
+      Response.success(res, 200, 'Reporte semanal de horas por agente y skill', report);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+
   createHorario: async (req, res, next) => {
     try {
       const horarioData = {

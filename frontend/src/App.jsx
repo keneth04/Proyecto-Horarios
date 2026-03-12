@@ -12,6 +12,7 @@ import CreateDraftPage from './pages/admin/CreateDraftPage';
 import PublishWeekPage from './pages/admin/PublishWeekPage';
 import EditPublishedWeekPage from './pages/admin/EditPublishedWeekPage';
 import StaffingPage from './pages/admin/StaffingPage';
+import WeeklyHoursReportPage from './pages/admin/WeeklyHoursReportPage';
 import MySchedulePage from './pages/agent/MySchedulePage';
 
 export default function App() {
@@ -32,6 +33,7 @@ export default function App() {
             <Route path="publicar-semana" element={<PublishWeekPage />} />
             <Route path="editar-semana" element={<EditPublishedWeekPage />} />
             <Route path="dotacion" element={<StaffingPage />} />
+            <Route path="reporte-horas" element={<WeeklyHoursReportPage />} />
           </Route>
         </Route>
 

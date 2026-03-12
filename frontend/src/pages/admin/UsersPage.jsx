@@ -179,8 +179,8 @@ export default function UsersPage() {
             label: 'Acciones',
             render: (row) => (
               <div className="flex gap-2">
-                <button onClick={() => openEdit(row)} className="rounded border px-2 py-1">Editar</button>
-                <button onClick={() => toggleStatus(row)} className="rounded border px-2 py-1">Cambiar estado</button>
+                <button onClick={() => openEdit(row)} className="rounded border  bg-green-300 px-2 py-1">Editar</button>
+                <button onClick={() => toggleStatus(row)} className="rounded border bg-red-300 px-2 py-1">Cambiar estado</button>
               </div>
             )
           }

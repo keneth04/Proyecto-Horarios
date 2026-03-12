@@ -40,6 +40,15 @@ module.exports.HorariosAPI = (app) => {
     RoleMiddleware(['admin']),
     HorariosController.getStaffingTableByDate
   );
+
+   // 📌 ADMIN - reporte semanal de horas por agente y skill
+  router.get(
+    '/reporte/horas-semana',
+    AuthMiddleware,
+    RoleMiddleware(['admin']),
+    HorariosController.getWeeklyHoursReport
+  );
+
   // 📌 AGENTE - ver solo sus horarios PUBLICADOS
   router.get(
     '/mi-horario',
