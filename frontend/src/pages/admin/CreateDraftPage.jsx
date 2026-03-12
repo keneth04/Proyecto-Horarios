@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { HorariosApi, SkillsApi, UsersApi } from '../../api/endpoints';
 import { useToast } from '../../components/Toast';
 import { getErrorMessage, isValidHour } from '../../utils/helpers';
@@ -13,6 +13,29 @@ export default function CreateDraftPage() {
   const [blocks, setBlocks] = useState([{ ...emptyBlock }]);
   const { push } = useToast();
 
+  const selectedUser = useMemo(
+    () => users.find((user) => String(user._id) === String(userId)) || null,
+    [users, userId]
+  );
+
+  const availableSkills = useMemo(() => {
+    if (!selectedUser) return [];
+
+    const allowedSkillIds = new Set(
+      (Array.isArray(selectedUser.allowedSkills) ? selectedUser.allowedSkills : [])
+        .map((skillId) => String(skillId))
+    );
+
+    return skills.filter((skill) => {
+      if (skill.type === 'absence') {
+        return true;
+      }
+
+      return allowedSkillIds.has(String(skill._id));
+    });
+  }, [skills, selectedUser]);
+
+
   useEffect(() => {
     Promise.all([UsersApi.list(), SkillsApi.list()]).then(([u, s]) => {
       const activeUsers = u.data.body.filter((user) => user.status === 'active' && user.role === 'agente');
@@ -21,6 +44,17 @@ export default function CreateDraftPage() {
       setSkills(s.data.body.filter((skill) => skill.status === 'active'));
     }).catch((error) => push(getErrorMessage(error), 'error'));
   }, []);
+
+  useEffect(() => {
+    const validSkillIds = new Set(availableSkills.map((skill) => String(skill._id)));
+
+    setBlocks((prev) => prev.map((block) => {
+      if (!block.skillId) return block;
+      if (validSkillIds.has(String(block.skillId))) return block;
+
+      return { ...block, skillId: '' };
+    }));
+  }, [availableSkills]);
 
   const setBlock = (idx, field, value) => setBlocks((prev) => prev.map((b, i) => i === idx ? { ...b, [field]: value } : b));
 
@@ -63,9 +97,9 @@ export default function CreateDraftPage() {
         <div key={idx} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2">
           <input value={block.start} onChange={(e) => setBlock(idx, 'start', e.target.value)} className="rounded border px-2 py-1" />
           <input value={block.end} onChange={(e) => setBlock(idx, 'end', e.target.value)} className="rounded border px-2 py-1" />
-          <select value={block.skillId} onChange={(e) => setBlock(idx, 'skillId', e.target.value)} className="rounded border px-2 py-1">
-            <option value="">Skill</option>
-            {skills.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
+          <select value={block.skillId} disabled={!selectedUser} onChange={(e) => setBlock(idx, 'skillId', e.target.value)} className="rounded border px-2 py-1">
+            <option value="">{selectedUser ? 'Skill' : 'Selecciona un agente primero'}</option>
+            {availableSkills.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
           </select>
           <button
             onClick={() => remove(idx)}
