@@ -16,6 +16,23 @@ const STRICT_ISO_DATE_REGEX = /^(\d{4})-(\d{2})-(\d{2})$/;
 const STRICT_DATE_ERROR_MESSAGE = 'Fecha inválida, formato esperado YYYY-MM-DD';
 const ALLOWED_SCHEDULE_STATUSES = ['borrador', 'publicado', 'archivado'];
 
+const inferSkillTypeFromName = (skill = {}) => {
+  const upperName = String(skill.name || '').trim().toUpperCase();
+
+  if (upperName === 'BREAK') return 'break';
+  if (upperName === 'REST' || upperName === 'DESCANSO') return 'rest';
+  if (upperName === 'VACACIONES' || upperName === 'SANCION' || upperName === 'CUMPLEAÑOS') {
+    return 'absence';
+  }
+
+  return upperName ? 'operative' : undefined;
+};
+
+const resolveSkillType = (skill) => {
+  if (skill?.type) return skill.type;
+  return inferSkillTypeFromName(skill);
+};
+
 /* =========================
  * Helpers base
  * ========================= */
@@ -217,6 +234,16 @@ const buildSkillsMapFromIds = async (skillsCollection, ids) => {
 const getSkillFromMapOrThrow = (skillsMap, skillId, messageIfMissing = 'Skill no existe') => {
   const skill = skillsMap[String(skillId)];
   if (!skill) throw new createError.BadRequest(messageIfMissing);
+
+  const resolvedType = resolveSkillType(skill);
+  if (!resolvedType) {
+    throw new createError.BadRequest(`La skill ${skill.name || skillId} no tiene un tipo válido`);
+  }
+
+  if (!skill.type) {
+    return { ...skill, type: resolvedType };
+  }
+  
   return skill;
 };
 
@@ -1163,14 +1190,24 @@ const editPublishedWeek = async ({ userId, date, schedules, editedBy }) => {
     }
     uniqueDays.add(dayKey);
 
-    const validatedBlocks = validateBlocksStructure(day.blocks);
+    let validatedBlocks;
+
+    try {
+      validatedBlocks = validateBlocksStructure(day.blocks);
+    } catch (error) {
+      throw new createError.BadRequest(`Error en día ${dayKey}: ${error.message}`);
+    }
 
     // Validación 4h + rest
-    validateDayBlocksBusinessRules({
-      blocks: validatedBlocks,
-      skillsMap,
-      allowedSkillsSet: null
-    });
+    try {
+      validateDayBlocksBusinessRules({
+        blocks: validatedBlocks,
+        skillsMap,
+        allowedSkillsSet: null
+      });
+    } catch (error) {
+      throw new createError.BadRequest(`Error en día ${dayKey}: ${error.message}`);
+    }
 
     // total horas operativas + detectar restDay
     for (const block of validatedBlocks) {
@@ -1196,7 +1233,8 @@ const editPublishedWeek = async ({ userId, date, schedules, editedBy }) => {
     }
     }
   }
-
+  
+  const userData = await usersCollection.findOne({ _id: new ObjectId(userId) });
   const userName = userData?.name || 'Usuario desconocido';
 
   if (!restDayDate) {

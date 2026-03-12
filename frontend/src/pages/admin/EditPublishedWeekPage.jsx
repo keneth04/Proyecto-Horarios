@@ -3,6 +3,8 @@ import { HorariosApi, SkillsApi, UsersApi } from '../../api/endpoints';
 import { useToast } from '../../components/Toast';
 import { getErrorMessage, isValidHour } from '../../utils/helpers';
 
+const EMPTY_BLOCK = { start: '08:00', end: '09:00', skillId: '' };
+
 export default function EditPublishedWeekPage() {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [users, setUsers] = useState([]);
@@ -41,14 +43,67 @@ export default function EditPublishedWeekPage() {
     }));
   };
 
-  const save = async () => {
-    for (const day of week) {
-      for (const block of day.blocks) {
-        if (!isValidHour(block.start) || !isValidHour(block.end) || block.end <= block.start) {
-          push('Bloques inválidos en editor', 'error');
-          return;
+  const addBlock = (dayIndex) => {
+    setWeek((prev) => prev.map((d, i) => i !== dayIndex ? d : {
+      ...d,
+      blocks: [...d.blocks, { ...EMPTY_BLOCK }]
+    }));
+  };
+
+  const removeBlock = (dayIndex, blockIndex) => {
+    setWeek((prev) => prev.map((d, i) => {
+      if (i !== dayIndex) return d;
+
+      return {
+        ...d,
+        blocks: d.blocks.filter((_, bi) => bi !== blockIndex)
+      };
+    }));
+  };
+
+  const validateWeek = () => {
+    if (!week.length) {
+      return 'Debe cargar una semana antes de guardar';
+    }
+
+    for (let dayIndex = 0; dayIndex < week.length; dayIndex += 1) {
+      const day = week[dayIndex];
+
+      if (!Array.isArray(day.blocks) || day.blocks.length === 0) {
+        return `Día ${day.date}: debe existir al menos un bloque`;
+      }
+
+      for (let blockIndex = 0; blockIndex < day.blocks.length; blockIndex += 1) {
+        const block = day.blocks[blockIndex];
+        const blockLabel = `Día ${day.date}, bloque ${blockIndex + 1}`;
+
+        if (!block.start || !block.end || !block.skillId) {
+          return `${blockLabel}: faltan datos obligatorios (inicio, fin o skill)`;
+        }
+
+        if (!isValidHour(block.start)) {
+          return `${blockLabel}: la hora de inicio debe tener formato HH:mm`;
+        }
+
+        if (!isValidHour(block.end)) {
+          return `${blockLabel}: la hora de fin debe tener formato HH:mm`;
+        }
+
+        if (block.end <= block.start) {
+          return `${blockLabel}: la hora fin debe ser mayor a la hora inicio`;
         }
       }
+    }
+
+    return null;
+  };
+
+  const save = async () => {
+    const validationError = validateWeek();
+
+    if (validationError) {
+      push(validationError, 'error');
+      return;
     }
 
     try {
@@ -73,15 +128,24 @@ export default function EditPublishedWeekPage() {
           <div key={day.id} className="rounded bg-white p-3 shadow">
             <p className="mb-2 font-medium">{day.date}</p>
             {day.blocks.map((block, blockIdx) => (
-              <div key={blockIdx} className="mb-1 grid grid-cols-3 gap-2">
+              <div key={blockIdx} className="mb-1 grid grid-cols-[1fr_1fr_1fr_auto] gap-2">
                 <input value={block.start} onChange={(e) => updateBlock(dayIdx, blockIdx, 'start', e.target.value)} className="rounded border px-2 py-1" />
                 <input value={block.end} onChange={(e) => updateBlock(dayIdx, blockIdx, 'end', e.target.value)} className="rounded border px-2 py-1" />
                 <select value={block.skillId} onChange={(e) => updateBlock(dayIdx, blockIdx, 'skillId', e.target.value)} className="rounded border px-2 py-1">
                   <option value="">Skill</option>
                   {skills.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
                 </select>
+                <button
+                  onClick={() => removeBlock(dayIdx, blockIdx)}
+                  className="rounded border border-red-300 px-2 py-1 text-red-600"
+                >
+                  Eliminar bloque
+                </button>
               </div>
             ))}
+            <button onClick={() => addBlock(dayIdx)} className="mt-2 rounded border px-3 py-1">
+              Agregar bloque
+            </button>
           </div>
         ))}
       </div>
