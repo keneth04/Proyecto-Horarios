@@ -98,7 +98,7 @@ export default function CreateDraftPage() {
           <input value={block.start} onChange={(e) => setBlock(idx, 'start', e.target.value)} className="rounded border px-2 py-1" />
           <input value={block.end} onChange={(e) => setBlock(idx, 'end', e.target.value)} className="rounded border px-2 py-1" />
           <select value={block.skillId} disabled={!selectedUser} onChange={(e) => setBlock(idx, 'skillId', e.target.value)} className="rounded border px-2 py-1">
-            <option value="">{selectedUser ? 'Skill' : 'Selecciona un agente primero'}</option>
+            <option value="">{selectedUser ? 'Habilidad' : 'Selecciona un agente primero'}</option>
             {availableSkills.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
           </select>
           <button

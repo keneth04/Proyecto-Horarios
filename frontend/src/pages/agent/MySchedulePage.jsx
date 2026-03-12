@@ -38,7 +38,7 @@ export default function MySchedulePage() {
                 className="max-w-xs rounded px-2 py-1 text-xs text-white"
                 style={{ backgroundColor: b.skill?.color || '#334155' }}
               >
-                <p className="font-medium">{b.start}-{b.end} {b.skill?.name || 'Skill'}</p>
+                <p className="font-medium">{b.start}-{b.end} {b.skill?.name || 'Habilidad'}</p>
                 <p className="mt-0.5 text-[11px] text-slate-100">
                   {b.skill?.descripcion?.trim() || 'Sin descripción disponible'}
                 </p>

@@ -132,7 +132,7 @@ export default function EditPublishedWeekPage() {
                 <input value={block.start} onChange={(e) => updateBlock(dayIdx, blockIdx, 'start', e.target.value)} className="rounded border px-2 py-1" />
                 <input value={block.end} onChange={(e) => updateBlock(dayIdx, blockIdx, 'end', e.target.value)} className="rounded border px-2 py-1" />
                 <select value={block.skillId} onChange={(e) => updateBlock(dayIdx, blockIdx, 'skillId', e.target.value)} className="rounded border px-2 py-1">
-                  <option value="">Skill</option>
+                  <option value="">Habilidad</option>
                   {skills.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
                 </select>
                 <button

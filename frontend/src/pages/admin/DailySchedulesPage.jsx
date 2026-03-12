@@ -39,7 +39,7 @@ export default function DailySchedulesPage() {
               <div className="mt-2 flex flex-wrap gap-2">
                 {h.blocks.map((b, i) => (
                   <span key={i} className="rounded px-2 py-1 text-xs text-white" style={{ backgroundColor: b.skill?.color || '#334155' }}>
-                    {b.start}-{b.end} {b.skill?.name || 'Skill'}
+                    {b.start}-{b.end} {b.skill?.name || 'Habilidad'}
                   </span>
                 ))}
               </div>

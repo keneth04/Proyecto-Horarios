@@ -35,7 +35,7 @@ export default function SkillsPage() {
     e.preventDefault();
     try {
       await SkillsApi.create(form);
-      push('Skill creada');
+      push('Habilidad creada');
       setForm(EMPTY_SKILL_FORM);
       load();
     } catch (error) {
@@ -65,7 +65,7 @@ export default function SkillsPage() {
 
     try {
       await SkillsApi.update(editingSkill._id, editForm);
-      push('Skill actualizada');
+      push('Habilidad actualizada');
       closeEdit();
       load();
     } catch (error) {
@@ -84,7 +84,7 @@ export default function SkillsPage() {
 
   return (
     <section className="space-y-4">
-      <h2 className="text-xl font-semibold">Skills</h2>
+      <h2 className="text-xl font-semibold">Habilidades</h2>
       <form onSubmit={submit} className="grid grid-cols-4 gap-2 rounded bg-white p-3 shadow">
         <input placeholder="Nombre" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="rounded border px-2 py-1" />
         <input type="color" value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })} className="h-9 rounded border px-2" />
@@ -118,7 +118,7 @@ export default function SkillsPage() {
         />
       )}
 
-      <Modal open={isEditOpen} title="Editar skill" onClose={closeEdit}>
+      <Modal open={isEditOpen} title="Editar habilidad" onClose={closeEdit}>
         <form onSubmit={submitEdit} className="space-y-3">
           <div className="grid gap-2 md:grid-cols-2">
             <input

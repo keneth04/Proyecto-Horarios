@@ -163,7 +163,7 @@ export default function UsersPage() {
 
   return (
     <section className="space-y-4">
-      <h2 className="text-xl font-semibold">Users</h2>
+      <h2 className="text-xl font-semibold">Usuarios</h2>
       <form onSubmit={create} className="space-y-2 rounded bg-white p-3 shadow">
 
         <div className="grid gap-2 rounded bg-white p-3 shadow md:grid-cols-2">
@@ -186,8 +186,8 @@ export default function UsersPage() {
 
         <div className="grid grid-cols-5 gap-2">
           <input className="rounded border px-2 py-1" placeholder="Nombre" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-          <input className="rounded border px-2 py-1" placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-          <input className="rounded border px-2 py-1" type="password" placeholder="Password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+          <input className="rounded border px-2 py-1" placeholder="Correo" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+          <input className="rounded border px-2 py-1" type="Contraseña" placeholder="Password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
           <select className="rounded border px-2 py-1" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}><option value="agente">agente</option><option value="admin">admin</option></select>
           <input className="rounded border px-2 py-1" placeholder="Campaña" value={form.campaign} onChange={(e) => setForm({ ...form, campaign: e.target.value })} />
         </div>
@@ -206,10 +206,10 @@ export default function UsersPage() {
       <Table
         columns={[
           { key: 'name', label: 'Nombre' },
-          { key: 'email', label: 'Email' },
+          { key: 'email', label: 'Correo' },
           { key: 'role', label: 'Rol' },
           { key: 'campaign', label: 'Campaña', render: (row) => row.campaign || 'Sin campaña' },
-          { key: 'allowedSkills', label: 'Skills disponibles', render: renderAllowedSkills },
+          { key: 'allowedSkills', label: 'Habilidades disponibles', render: renderAllowedSkills },
           { key: 'status', label: 'Estado' },
           {
             key: 'actions',
@@ -236,7 +236,7 @@ export default function UsersPage() {
             />
             <input
               className="rounded border px-2 py-1"
-              placeholder="Email"
+              placeholder="Correo"
               value={editForm.email}
               onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
             />

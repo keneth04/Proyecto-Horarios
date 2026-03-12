@@ -2,14 +2,14 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 
 const links = [
-  { to: '/admin/skills', label: 'Skills' },
-  { to: '/admin/users', label: 'Users' },
-  { to: '/admin/horarios-dia', label: 'Horarios día' },
+  { to: '/admin/skills', label: 'Habilidades' },
+  { to: '/admin/users', label: 'Agentes' },
+  { to: '/admin/horarios-dia', label: 'Horarios por día' },
   { to: '/admin/crear-borrador', label: 'Crear borrador' },
   { to: '/admin/publicar-semana', label: 'Publicar semana' },
   { to: '/admin/editar-semana', label: 'Editar semana' },
   { to: '/admin/dotacion', label: 'Dotación' },
-  { to: '/admin/reporte-horas', label: 'Reporte horas' }
+  { to: '/admin/reporte-horas', label: 'Reporte de horas' }
 ];
 
 export default function AdminLayout() {
@@ -18,7 +18,7 @@ export default function AdminLayout() {
   return (
     <div className="flex min-h-screen">
       <aside className="w-64 bg-slate-900 p-4 text-white">
-        <div className="mb-4 text-lg font-semibold">Admin: {user?.name}</div>
+        <div className="mb-4 text-lg font-semibold">Administrador: {user?.name}</div>
         <nav className="space-y-1">
           {links.map((link) => (
             <NavLink
