@@ -18,6 +18,14 @@ export default function MySchedulePage() {
 
   if (loading) return <Spinner />;
 
+  if (!items.length) {
+    return (
+      <div className="rounded bg-white p-4 text-sm text-slate-600 shadow">
+        No tienes horarios publicados por el momento.
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
       {items.map((day) => (
@@ -25,9 +33,16 @@ export default function MySchedulePage() {
           <p className="font-medium">{new Date(day.date).toISOString().slice(0, 10)}</p>
           <div className="mt-2 flex flex-wrap gap-2">
             {day.blocks.map((b, idx) => (
-              <span key={idx} className="rounded px-2 py-1 text-xs text-white" style={{ backgroundColor: b.skill?.color || '#334155' }}>
-                {b.start}-{b.end} {b.skill?.name || 'Skill'}
-              </span>
+              <div
+                key={idx}
+                className="max-w-xs rounded px-2 py-1 text-xs text-white"
+                style={{ backgroundColor: b.skill?.color || '#334155' }}
+              >
+                <p className="font-medium">{b.start}-{b.end} {b.skill?.name || 'Skill'}</p>
+                <p className="mt-0.5 text-[11px] text-slate-100">
+                  {b.skill?.descripcion?.trim() || 'Sin descripción disponible'}
+                </p>
+              </div>
             ))}
           </div>
         </div>
