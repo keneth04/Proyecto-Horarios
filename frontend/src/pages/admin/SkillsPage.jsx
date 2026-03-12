@@ -1,14 +1,20 @@
 import { useEffect, useState } from 'react';
 import { SkillsApi } from '../../api/endpoints';
 import Table from '../../components/Table';
+import Modal from '../../components/Modal';
 import Spinner from '../../components/Spinner';
 import { useToast } from '../../components/Toast';
 import { getErrorMessage } from '../../utils/helpers';
 
+const EMPTY_SKILL_FORM = { name: '', color: '#1e40af', descripcion: '' };
+
 export default function SkillsPage() {
   const [skills, setSkills] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({ name: '', color: '#1e40af', descripcion: '' });
+  const [form, setForm] = useState(EMPTY_SKILL_FORM);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editingSkill, setEditingSkill] = useState(null);
+  const [editForm, setEditForm] = useState({ name: '', color: '#1e40af' });
   const { push } = useToast();
 
   const load = async () => {
@@ -30,7 +36,36 @@ export default function SkillsPage() {
     try {
       await SkillsApi.create(form);
       push('Skill creada');
-      setForm({ name: '', color: '#1e40af', descripcion: '' });
+      setForm(EMPTY_SKILL_FORM);
+      load();
+    } catch (error) {
+      push(getErrorMessage(error), 'error');
+    }
+  };
+
+  const openEdit = (skill) => {
+    setEditingSkill(skill);
+    setEditForm({
+      name: skill.name || '',
+      color: skill.color || '#1e40af'
+    });
+    setIsEditOpen(true);
+  };
+
+  const closeEdit = () => {
+    setIsEditOpen(false);
+    setEditingSkill(null);
+    setEditForm({ name: '', color: '#1e40af' });
+  };
+
+  const submitEdit = async (e) => {
+    e.preventDefault();
+    if (!editingSkill?._id) return;
+
+    try {
+      await SkillsApi.update(editingSkill._id, editForm);
+      push('Skill actualizada');
+      closeEdit();
       load();
     } catch (error) {
       push(getErrorMessage(error), 'error');
@@ -62,11 +97,50 @@ export default function SkillsPage() {
             { key: 'type', label: 'Tipo' },
             { key: 'status', label: 'Estado' },
             { key: 'color', label: 'Color', render: (row) => <span className="rounded px-2 py-1 text-white" style={{ backgroundColor: row.color }}>{row.color}</span> },
-            { key: 'actions', label: 'Acciones', render: (row) => <button onClick={() => toggle(row)} className="rounded border px-2 py-1">Cambiar estado</button> }
+            {
+              key: 'actions',
+              label: 'Acciones',
+              render: (row) => (
+                <div className="flex gap-2">
+                  <button onClick={() => openEdit(row)} className="rounded border px-2 py-1">Editar</button>
+                  <button onClick={() => toggle(row)} className="rounded border px-2 py-1">Cambiar estado</button>
+                </div>
+              )
+            }
           ]}
           rows={skills}
         />
       )}
+
+      <Modal open={isEditOpen} title="Editar skill" onClose={closeEdit}>
+        <form onSubmit={submitEdit} className="space-y-3">
+          <div className="grid gap-2 md:grid-cols-2">
+            <input
+              className="rounded border px-2 py-1"
+              placeholder="Nombre"
+              value={editForm.name}
+              disabled={editingSkill?.type === 'break' || editingSkill?.type === 'rest'}
+              onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+            />
+            <input
+              type="color"
+              value={editForm.color}
+              onChange={(e) => setEditForm({ ...editForm, color: e.target.value })}
+              className="h-9 rounded border px-2"
+            />
+          </div>
+
+          {(editingSkill?.type === 'break' || editingSkill?.type === 'rest') && (
+            <p className="text-sm text-slate-500">El nombre de skills BREAK/REST no se puede editar.</p>
+          )}
+
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={closeEdit} className="rounded border px-3 py-2">Cancelar</button>
+            <button className="rounded bg-slate-900 px-3 py-2 text-white">Guardar cambios</button>
+          </div>
+        </form>
+      </Modal>
+
     </section>
   );
 }
