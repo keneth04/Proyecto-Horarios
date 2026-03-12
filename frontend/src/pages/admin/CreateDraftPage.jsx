@@ -26,6 +26,17 @@ export default function CreateDraftPage() {
 
   const add = () => setBlocks((prev) => [...prev, { ...emptyBlock }]);
 
+  const remove = (idx) => {
+    setBlocks((prev) => {
+      if (prev.length === 1) {
+        push('Debe existir al menos un bloque', 'error');
+        return prev;
+      }
+
+      return prev.filter((_, blockIndex) => blockIndex !== idx);
+    });
+  };
+
   const save = async () => {
     for (const block of blocks) {
       if (!isValidHour(block.start) || !isValidHour(block.end) || block.end <= block.start) {
@@ -49,13 +60,19 @@ export default function CreateDraftPage() {
         <select value={userId} onChange={(e) => setUserId(e.target.value)} className="rounded border px-2 py-1">{users.map((u) => <option value={u._id} key={u._id}>{u.name}</option>)}</select>
       </div>
       {blocks.map((block, idx) => (
-        <div key={idx} className="grid grid-cols-3 gap-2">
+        <div key={idx} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2">
           <input value={block.start} onChange={(e) => setBlock(idx, 'start', e.target.value)} className="rounded border px-2 py-1" />
           <input value={block.end} onChange={(e) => setBlock(idx, 'end', e.target.value)} className="rounded border px-2 py-1" />
           <select value={block.skillId} onChange={(e) => setBlock(idx, 'skillId', e.target.value)} className="rounded border px-2 py-1">
             <option value="">Skill</option>
             {skills.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
           </select>
+          <button
+            onClick={() => remove(idx)}
+            className="rounded border border-red-300 px-2 py-1 text-red-600"
+          >
+            Eliminar bloque
+          </button>
         </div>
       ))}
       <div className="flex gap-2">
