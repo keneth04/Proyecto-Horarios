@@ -14,7 +14,7 @@ export default function SkillsPage() {
   const [form, setForm] = useState(EMPTY_SKILL_FORM);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingSkill, setEditingSkill] = useState(null);
-  const [editForm, setEditForm] = useState({ name: '', color: '#1e40af' });
+  const [editForm, setEditForm] = useState({ name: '', color: '#1e40af', descripcion: '' });
   const { push } = useToast();
 
   const load = async () => {
@@ -47,7 +47,8 @@ export default function SkillsPage() {
     setEditingSkill(skill);
     setEditForm({
       name: skill.name || '',
-      color: skill.color || '#1e40af'
+      color: skill.color || '#1e40af',
+      descripcion: skill.descripcion || ''
     });
     setIsEditOpen(true);
   };
@@ -94,6 +95,11 @@ export default function SkillsPage() {
         <Table
           columns={[
             { key: 'name', label: 'Nombre' },
+            {
+              key: 'descripcion',
+              label: 'Descripción',
+              render: (row) => row.descripcion?.trim() || 'Sin descripción'
+            },
             { key: 'type', label: 'Tipo' },
             { key: 'status', label: 'Estado' },
             { key: 'color', label: 'Color', render: (row) => <span className="rounded px-2 py-1 text-white" style={{ backgroundColor: row.color }}>{row.color}</span> },
@@ -129,6 +135,13 @@ export default function SkillsPage() {
               className="h-9 rounded border px-2"
             />
           </div>
+
+          <input
+            className="w-full rounded border px-2 py-1"
+            placeholder="Descripción"
+            value={editForm.descripcion}
+            onChange={(e) => setEditForm({ ...editForm, descripcion: e.target.value })}
+          />
 
           {(editingSkill?.type === 'break' || editingSkill?.type === 'rest') && (
             <p className="text-sm text-slate-500">El nombre de skills BREAK/REST no se puede editar.</p>
