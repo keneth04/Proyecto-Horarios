@@ -139,7 +139,7 @@ const getByEmail = async (email) => {
 const create = async (body) => {
   const collection = await Database(COLLECTION);
 
-  const { name, email, password, role: bodyRole, campaign } = body;
+  const { name, email, password, role: bodyRole, campaign, allowedSkills } = body;
 
   if (!name || !email || !password) {
     throw new createError.BadRequest('Datos incompletos');
@@ -160,6 +160,7 @@ const create = async (body) => {
   }
 
   const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+  const normalizedAllowedSkills = await validateAndNormalizeAllowedSkills(allowedSkills);
 
   const newUser = {
     name,
@@ -168,7 +169,7 @@ const create = async (body) => {
     role: finalRole,
     status: 'active',
     campaign: normalizeCampaign(campaign),
-    allowedSkills: [],
+    allowedSkills: normalizedAllowedSkills ?? [],
     createdAt: new Date()
   };
 
