@@ -125,6 +125,42 @@ export default function UsersPage() {
     });
   }, [users, nameFilter, statusFilter]);
 
+  const skillsById = useMemo(() => {
+    return skills.reduce((acc, skill) => {
+      acc[String(skill._id)] = skill;
+      return acc;
+    }, {});
+  }, [skills]);
+
+  const renderAllowedSkills = (user) => {
+    const allowedSkills = Array.isArray(user.allowedSkills) ? user.allowedSkills : [];
+
+    if (allowedSkills.length === 0) {
+      return <span className="text-slate-500">Sin skills asignadas</span>;
+    }
+
+    const resolvedSkills = allowedSkills
+      .map((skillId) => skillsById[String(skillId)])
+      .filter(Boolean);
+
+    if (resolvedSkills.length === 0) {
+      return <span className="text-slate-500">Sin skills asignadas</span>;
+    }
+
+    return (
+      <div className="flex flex-wrap gap-1">
+        {resolvedSkills.map((skill) => (
+          <span
+            key={skill._id}
+            className="rounded-full border px-2 py-0.5 text-xs text-slate-700"
+          >
+            {skill.name}
+          </span>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <section className="space-y-4">
       <h2 className="text-xl font-semibold">Users</h2>
@@ -173,6 +209,7 @@ export default function UsersPage() {
           { key: 'email', label: 'Email' },
           { key: 'role', label: 'Rol' },
           { key: 'campaign', label: 'Campaña', render: (row) => row.campaign || 'Sin campaña' },
+          { key: 'allowedSkills', label: 'Skills disponibles', render: renderAllowedSkills },
           { key: 'status', label: 'Estado' },
           {
             key: 'actions',
