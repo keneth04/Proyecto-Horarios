@@ -4,6 +4,7 @@ import { AuthApi } from '../api/endpoints';
 import Spinner from '../components/Spinner';
 import { useToast } from '../components/Toast';
 import { getErrorMessage } from '../utils/helpers';
+import BrandLogo from '../components/BrandLogo';
 
 export default function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
@@ -45,12 +46,13 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#f8f9fb] p-4">
-      <form onSubmit={onSubmit} className="w-full max-w-md rounded-2xl border border-[#eef0f4] bg-white p-6 shadow-sm md:p-8">
-        <h1 className="mb-2 text-xl font-semibold">Restablecer contraseña</h1>
-        <p className="mb-5 text-sm text-[#4a4a4a]">Define una contraseña nueva para tu cuenta.</p>
+    <div className="flex min-h-screen items-center justify-center bg-[#f3f1f8] p-4">
+      <form onSubmit={onSubmit} className="w-full max-w-md rounded-3xl border border-[#e6deef] bg-white p-7 shadow-[0_18px_45px_rgba(35,18,56,0.12)] md:p-8">
+        <BrandLogo className="mb-5" />
+        <h1 className="mb-2 text-xl font-bold text-[#261d35]">Restablecer contraseña</h1>
+        <p className="mb-5 text-sm text-[#5e536d]">Define una contraseña nueva para tu cuenta.</p>
 
-        <label className="mb-2 block text-sm font-medium text-[#4a4a4a]">Nueva contraseña</label>
+        <label className="mb-2 block text-sm font-semibold text-[#413653]">Nueva contraseña</label>
         <input
           type="password"
           value={password}
@@ -59,7 +61,7 @@ export default function ResetPasswordPage() {
           required
         />
 
-      <label className="mb-2 block text-sm font-medium text-[#4a4a4a]">Confirmar contraseña</label>
+        <label className="mb-2 block text-sm font-semibold text-[#413653]">Confirmar contraseña</label>
         <input
           type="password"
           value={confirmPassword}
@@ -72,9 +74,9 @@ export default function ResetPasswordPage() {
           {loading ? <Spinner label="Guardando..." /> : 'Guardar nueva contraseña'}
         </button>
 
-        {success ? <p className="mb-3 text-sm text-emerald-700">Tu contraseña fue actualizada. Ya puedes iniciar sesión.</p> : null}
+        {success ? <p className="mb-3 text-sm font-medium text-emerald-700">Tu contraseña fue actualizada. Ya puedes iniciar sesión.</p> : null}
 
-        <Link to="/login" className="text-sm font-medium text-[#835da2] hover:text-[#724d91] hover:underline">
+        <Link to="/login" className="text-sm font-semibold text-[#765492] hover:text-[#5c3f73] hover:underline">
           Ir al inicio de sesión
         </Link>
       </form>

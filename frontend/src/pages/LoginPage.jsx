@@ -5,6 +5,7 @@ import { useAuth } from '../auth/AuthContext';
 import Spinner from '../components/Spinner';
 import { useToast } from '../components/Toast';
 import { getErrorMessage } from '../utils/helpers';
+import BrandLogo from '../components/BrandLogo';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -59,38 +60,45 @@ export default function LoginPage() {
   const isLocked = Boolean(lockUntil && now < lockUntil);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#f8f9fb] p-4">
-      <form onSubmit={onSubmit} className="w-full max-w-md rounded-2xl border border-[#eef0f4] bg-white p-6 shadow-sm md:p-8">
-        <div className="mb-6 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#835da2] text-lg font-semibold text-white">ñ</div>
-          <div>
-            <p className="text-xs uppercase tracking-wider text-[#4a4a4a]">Logo principal</p>
-            <h1 className="text-xl font-semibold text-[#1f2937]">Inicio de Sesión</h1>
+    <div className="flex min-h-screen items-center justify-center bg-[#f3f1f8] p-4">
+      <div className="grid w-full max-w-5xl overflow-hidden rounded-3xl border border-[#e6deef] bg-white shadow-[0_24px_60px_rgba(35,18,56,0.12)] lg:grid-cols-2">
+        <form onSubmit={onSubmit} className="p-7 md:p-10">
+          <p className="section-subtitle">Acceso seguro</p>
+          <h1 className="mb-2 text-3xl font-bold text-[#261d35]">Inicio de sesión</h1>
+          <p className="mb-8 text-sm text-[#6b6477]">Gestiona tu operación en minutos con una experiencia clara y profesional.</p>
+
+        <label className="mb-2 block text-sm font-semibold text-[#413653]">Correo</label>
+          <input value={email} onChange={(e) => setEmail(e.target.value)} className="mb-4 w-full" placeholder="correo@empresa.com" />
+
+        <label className="mb-2 block text-sm font-semibold text-[#413653]">Contraseña</label>
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="mb-2 w-full" placeholder="••••••••" />
+
+        <div className="mb-5 text-right">
+            <Link to="/forgot-password" className="text-sm font-semibold text-[#765492] transition hover:text-[#5c3f73] hover:underline">
+              ¿Olvidaste tu contraseña?
+            </Link>
           </div>
-        </div>
-
-        <label className="mb-2 block text-sm font-medium text-[#4a4a4a]">Correo</label>
-        <input value={email} onChange={(e) => setEmail(e.target.value)} className="mb-4 w-full" />
-
-        <label className="mb-2 block text-sm font-medium text-[#4a4a4a]">Contraseña</label>
-        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="mb-2 w-full" />
-
-        <div className="mb-4 text-right">
-          <Link to="/forgot-password" className="text-sm font-medium text-[#835da2] hover:text-[#724d91] hover:underline">
-            ¿Olvidaste tu contraseña?
-          </Link>
-        </div>
 
           {errorMessage ? (
-          <p className="mb-4 rounded-lg border border-[#e52e2e]/20 bg-[#e52e2e]/10 px-3 py-2 text-sm text-[#b42323]">
-            {errorMessage}
+          <p className="mb-4 rounded-xl border border-[#e12d2d]/20 bg-[#e12d2d]/10 px-3 py-2 text-sm text-[#b42323]">
+              {errorMessage}
+            </p>
+          ) : null}
+
+          <button disabled={loading || isLocked} className="btn-primary w-full">
+            {loading ? <Spinner label="Ingresando..." /> : 'Iniciar sesión'}
+          </button>
+        </form>
+
+        <aside className="hidden bg-[#765492] p-10 text-white lg:flex lg:flex-col lg:justify-center">
+          <BrandLogo className="mb-6" />
+          <h2 className="mb-3 text-3xl font-bold">Bienvenido de vuelta</h2>
+          <p className="max-w-md text-sm leading-relaxed text-white/90">
+            Hoy también es un gran día para coordinar turnos con precisión y mantener a tu equipo conectado.
           </p>
-        ) : null}
-        
-        <button disabled={loading || isLocked} className="btn-primary w-full">
-          {loading ? <Spinner label="Ingresando..." /> : 'Iniciar'}
-        </button>
-      </form>
+        <div className="mt-8 h-1.5 w-28 rounded-full bg-[#e12d2d]" />
+        </aside>
+      </div>
     </div>
   );
 }

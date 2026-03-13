@@ -5,8 +5,9 @@ import Modal from '../../components/Modal';
 import Spinner from '../../components/Spinner';
 import { useToast } from '../../components/Toast';
 import { getErrorMessage } from '../../utils/helpers';
+import StatusToggle from '../../components/StatusToggle';
 
-const EMPTY_SKILL_FORM = { name: '', color: '#835da2', descripcion: '' };
+const EMPTY_SKILL_FORM = { name: '', color: '#765492', descripcion: '' };
 
 export default function SkillsPage() {
   const [skills, setSkills] = useState([]);
@@ -14,7 +15,7 @@ export default function SkillsPage() {
   const [form, setForm] = useState(EMPTY_SKILL_FORM);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingSkill, setEditingSkill] = useState(null);
-  const [editForm, setEditForm] = useState({ name: '', color: '#835da2', descripcion: '' });
+  const [editForm, setEditForm] = useState({ name: '', color: '#765492', descripcion: '' });
   const { push } = useToast();
 
   const load = async () => {
@@ -47,7 +48,7 @@ export default function SkillsPage() {
     setEditingSkill(skill);
     setEditForm({
       name: skill.name || '',
-      color: skill.color || '#835da2',
+      color: skill.color || '#765492',
       descripcion: skill.descripcion || ''
     });
     setIsEditOpen(true);
@@ -56,7 +57,7 @@ export default function SkillsPage() {
   const closeEdit = () => {
     setIsEditOpen(false);
     setEditingSkill(null);
-    setEditForm({ name: '', color: '#835da2', descripcion: '' });
+    setEditForm({ name: '', color: '#765492', descripcion: '' });
   };
 
   const submitEdit = async (e) => {
@@ -85,11 +86,14 @@ export default function SkillsPage() {
   return (
     <section className="space-y-6">
       <h2 className="panel-title">Habilidades</h2>
-      <form onSubmit={submit} className="card grid gap-3 p-6 md:grid-cols-4">
-        <input placeholder="Nombre" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-        <input type="color" value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })} className="h-10 w-full cursor-pointer p-1" />
-        <input placeholder="Descripción" value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} />
-        <button className="btn-primary">Crear</button>
+      <form onSubmit={submit} className="card space-y-3 p-6">
+        <p className="section-subtitle">Crear habilidad</p>
+        <div className="grid gap-3 md:grid-cols-4">
+          <input placeholder="Nombre" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          <input type="color" value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })} className="h-11 w-full cursor-pointer p-1" />
+          <input placeholder="Descripción" value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} />
+          <button className="btn-primary">Crear</button>
+        </div>
       </form>
       {loading ? <Spinner /> : (
         <Table
@@ -97,7 +101,17 @@ export default function SkillsPage() {
             { key: 'name', label: 'Nombre' },
             { key: 'descripcion', label: 'Descripción', render: (row) => row.descripcion?.trim() || 'Sin descripción' },
             { key: 'type', label: 'Tipo' },
-            { key: 'status', label: 'Estado' },
+            {
+              key: 'status',
+              label: 'Estado',
+              render: (row) => (
+                <StatusToggle
+                  active={row.status === 'active'}
+                  onToggle={() => toggle(row)}
+                  label={`Cambiar estado de ${row.name}`}
+                />
+              )
+            },
             { key: 'color', label: 'Color', render: (row) => <span className="rounded-lg px-2 py-1 text-white" style={{ backgroundColor: row.color }}>{row.color}</span> },
             {
               key: 'actions',
@@ -105,7 +119,6 @@ export default function SkillsPage() {
               render: (row) => (
                 <div className="flex gap-2">
                   <button onClick={() => openEdit(row)} className="btn-secondary px-3 py-1.5">Editar</button>
-                  <button onClick={() => toggle(row)} className="btn-danger px-3 py-1.5">Cambiar estado</button>
                 </div>
               )
             }

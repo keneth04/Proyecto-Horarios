@@ -4,6 +4,8 @@ import Table from '../../components/Table';
 import Modal from '../../components/Modal';
 import { useToast } from '../../components/Toast';
 import { getErrorMessage } from '../../utils/helpers';
+import FancyCheckbox from '../../components/FancyCheckbox';
+import StatusToggle from '../../components/StatusToggle';
 
 const EMPTY_CREATE_FORM = {
   name: '',
@@ -81,7 +83,6 @@ export default function UsersPage() {
     setIsEditOpen(true);
   };
 
-
   const closeEdit = () => {
     setIsEditOpen(false);
     setEditingUser(null);
@@ -101,7 +102,6 @@ export default function UsersPage() {
       push(getErrorMessage(error), 'error');
     }
   };
-
 
   const toggleStatus = async (user) => {
     try {
@@ -148,11 +148,11 @@ export default function UsersPage() {
     }
 
     return (
-      <div className="flex flex-wrap gap-1">
+      <div className="flex flex-wrap gap-1.5">
         {resolvedSkills.map((skill) => (
           <span
             key={skill._id}
-            className="rounded-full border px-2 py-0.5 text-xs text-slate-700"
+            className="rounded-full border border-[#e0d7ec] bg-[#faf8fd] px-2.5 py-1 text-xs font-medium text-[#4f4164]"
           >
             {skill.name}
           </span>
@@ -164,40 +164,46 @@ export default function UsersPage() {
   return (
     <section className="space-y-6">
       <h2 className="panel-title">Usuarios</h2>
-      <form onSubmit={create} className="card space-y-4 p-6">
-
-        <div className="grid gap-4 md:grid-cols-2">
-        <input
-            className="rounded-lg border border-[#d9dde6] px-3 py-2"
-            placeholder="Buscar por nombre"
-            value={nameFilter}
-            onChange={(e) => setNameFilter(e.target.value)}
-          />
-          <select
-            className="rounded-lg border border-[#d9dde6] px-3 py-2"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            <option value="all">Todos</option>
-            <option value="active">Activo</option>
-            <option value="inactive">Inactivo</option>
-          </select>
+      <form onSubmit={create} className="card space-y-5 p-6">
+        <div>
+          <p className="section-subtitle">Filtros</p>
+          <div className="grid gap-4 md:grid-cols-2">
+            <input
+              placeholder="Buscar por nombre"
+              value={nameFilter}
+              onChange={(e) => setNameFilter(e.target.value)}
+            />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="all">Todos</option>
+              <option value="active">Activo</option>
+              <option value="inactive">Inactivo</option>
+            </select>
+          </div>
         </div>
 
-        <div className="grid gap-3 lg:grid-cols-5">
-          <input className="rounded-lg border border-[#d9dde6] px-3 py-2" placeholder="Nombre" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-          <input className="rounded-lg border border-[#d9dde6] px-3 py-2" placeholder="Correo" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-          <input className="rounded-lg border border-[#d9dde6] px-3 py-2" type="Contraseña" placeholder="Password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-          <select className="rounded-lg border border-[#d9dde6] px-3 py-2" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}><option value="agente">agente</option><option value="admin">admin</option></select>
-          <input className="rounded-lg border border-[#d9dde6] px-3 py-2" placeholder="Campaña" value={form.campaign} onChange={(e) => setForm({ ...form, campaign: e.target.value })} />
+        <div>
+          <p className="section-subtitle">Crear usuario</p>
+          <div className="grid gap-3 lg:grid-cols-5">
+            <input placeholder="Nombre" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+            <input placeholder="Correo" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+            <input type="password" placeholder="Contraseña" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+            <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}><option value="agente">agente</option><option value="admin">admin</option></select>
+            <input placeholder="Campaña" value={form.campaign} onChange={(e) => setForm({ ...form, campaign: e.target.value })} />
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-2">
           {skills.map((skill) => (
-            <label key={skill._id} className="flex items-center gap-2 rounded-lg border border-[#d9dde6] bg-white px-3 py-2 text-sm">
-              <input type="checkbox" checked={form.allowedSkills.includes(skill._id)} onChange={() => toggleSkill(skill._id)} />
-              {skill.name}
-            </label>
+            <FancyCheckbox
+              key={skill._id}
+              id={`create-skill-${skill._id}`}
+              checked={form.allowedSkills.includes(skill._id)}
+              onChange={() => toggleSkill(skill._id)}
+              label={skill.name}
+            />
           ))}
         </div>
         <button className="btn-primary">Crear usuario</button>
@@ -210,14 +216,23 @@ export default function UsersPage() {
           { key: 'role', label: 'Rol' },
           { key: 'campaign', label: 'Campaña', render: (row) => row.campaign || 'Sin campaña' },
           { key: 'allowedSkills', label: 'Habilidades disponibles', render: renderAllowedSkills },
-          { key: 'status', label: 'Estado' },
+          {
+            key: 'status',
+            label: 'Estado',
+            render: (row) => (
+              <StatusToggle
+                active={row.status === 'active'}
+                onToggle={() => toggleStatus(row)}
+                label={`Cambiar estado de ${row.name}`}
+              />
+            )
+          },
           {
             key: 'actions',
             label: 'Acciones',
             render: (row) => (
               <div className="flex gap-2">
                 <button onClick={() => openEdit(row)} className="btn-secondary px-3 py-1.5">Editar</button>
-                <button onClick={() => toggleStatus(row)} className="btn-danger px-3 py-1.5">Cambiar estado</button>
               </div>
             )
           }
@@ -229,19 +244,16 @@ export default function UsersPage() {
         <form onSubmit={submitEdit} className="space-y-3">
           <div className="grid gap-2 md:grid-cols-2">
             <input
-              className="rounded-lg border border-[#d9dde6] px-3 py-2"
               placeholder="Nombre"
               value={editForm.name}
               onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
             />
             <input
-              className="rounded-lg border border-[#d9dde6] px-3 py-2"
               placeholder="Correo"
               value={editForm.email}
               onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
             />
             <select
-              className="rounded-lg border border-[#d9dde6] px-3 py-2"
               value={editForm.role}
               onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
             >
@@ -249,7 +261,6 @@ export default function UsersPage() {
               <option value="admin">admin</option>
             </select>
             <input
-              className="rounded-lg border border-[#d9dde6] px-3 py-2"
               placeholder="Campaña"
               value={editForm.campaign}
               onChange={(e) => setEditForm({ ...editForm, campaign: e.target.value })}
@@ -258,14 +269,13 @@ export default function UsersPage() {
 
           <div className="flex flex-wrap gap-2">
             {skills.map((skill) => (
-              <label key={skill._id} className="flex items-center gap-2 rounded-lg border border-[#d9dde6] bg-white px-3 py-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={editForm.allowedSkills.includes(skill._id)}
-                  onChange={() => toggleEditSkill(skill._id)}
-                />
-                {skill.name}
-              </label>
+              <FancyCheckbox
+                key={skill._id}
+                id={`edit-skill-${skill._id}`}
+                checked={editForm.allowedSkills.includes(skill._id)}
+                onChange={() => toggleEditSkill(skill._id)}
+                label={skill.name}
+              />
             ))}
           </div>
 
