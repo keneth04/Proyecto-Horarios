@@ -19,13 +19,13 @@ export default function PublishWeekPage() {
   };
 
   return (
-    <section className="space-y-3">
-      <h2 className="text-xl font-semibold">Publicar semana</h2>
-      <div className="flex gap-2">
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="rounded border px-2 py-1" />
-        <button onClick={publish} className="rounded bg-slate-900 px-3 py-2 text-white">Publicar</button>
+   <section className="space-y-6">
+      <h2 className="panel-title">Publicar semana</h2>
+      <div className="card flex flex-wrap gap-3 p-4">
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        <button onClick={publish} className="btn-primary">Publicar</button>
       </div>
-      {result && <pre className="rounded bg-white p-3 text-xs shadow">{JSON.stringify(result, null, 2)}</pre>}
+      {result && <pre className="card text-xs">{JSON.stringify(result, null, 2)}</pre>}
     </section>
   );
 }

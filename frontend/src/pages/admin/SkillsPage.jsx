@@ -6,7 +6,7 @@ import Spinner from '../../components/Spinner';
 import { useToast } from '../../components/Toast';
 import { getErrorMessage } from '../../utils/helpers';
 
-const EMPTY_SKILL_FORM = { name: '', color: '#1e40af', descripcion: '' };
+const EMPTY_SKILL_FORM = { name: '', color: '#835da2', descripcion: '' };
 
 export default function SkillsPage() {
   const [skills, setSkills] = useState([]);
@@ -14,7 +14,7 @@ export default function SkillsPage() {
   const [form, setForm] = useState(EMPTY_SKILL_FORM);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingSkill, setEditingSkill] = useState(null);
-  const [editForm, setEditForm] = useState({ name: '', color: '#1e40af', descripcion: '' });
+  const [editForm, setEditForm] = useState({ name: '', color: '#835da2', descripcion: '' });
   const { push } = useToast();
 
   const load = async () => {
@@ -47,7 +47,7 @@ export default function SkillsPage() {
     setEditingSkill(skill);
     setEditForm({
       name: skill.name || '',
-      color: skill.color || '#1e40af',
+      color: skill.color || '#835da2',
       descripcion: skill.descripcion || ''
     });
     setIsEditOpen(true);
@@ -56,7 +56,7 @@ export default function SkillsPage() {
   const closeEdit = () => {
     setIsEditOpen(false);
     setEditingSkill(null);
-    setEditForm({ name: '', color: '#1e40af' });
+    setEditForm({ name: '', color: '#835da2', descripcion: '' });
   };
 
   const submitEdit = async (e) => {
@@ -83,33 +83,29 @@ export default function SkillsPage() {
   };
 
   return (
-    <section className="space-y-4">
-      <h2 className="text-xl font-semibold">Habilidades</h2>
-      <form onSubmit={submit} className="grid grid-cols-4 gap-2 rounded bg-white p-3 shadow">
-        <input placeholder="Nombre" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="rounded border px-2 py-1" />
-        <input type="color" value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })} className="h-9 rounded border px-2" />
-        <input placeholder="Descripción" value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} className="rounded border px-2 py-1" />
-        <button className="rounded bg-slate-900 px-3 py-2 text-white">Crear</button>
+    <section className="space-y-6">
+      <h2 className="panel-title">Habilidades</h2>
+      <form onSubmit={submit} className="card grid gap-3 p-6 md:grid-cols-4">
+        <input placeholder="Nombre" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+        <input type="color" value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })} className="h-10 w-full cursor-pointer p-1" />
+        <input placeholder="Descripción" value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} />
+        <button className="btn-primary">Crear</button>
       </form>
       {loading ? <Spinner /> : (
         <Table
           columns={[
             { key: 'name', label: 'Nombre' },
-            {
-              key: 'descripcion',
-              label: 'Descripción',
-              render: (row) => row.descripcion?.trim() || 'Sin descripción'
-            },
+            { key: 'descripcion', label: 'Descripción', render: (row) => row.descripcion?.trim() || 'Sin descripción' },
             { key: 'type', label: 'Tipo' },
             { key: 'status', label: 'Estado' },
-            { key: 'color', label: 'Color', render: (row) => <span className="rounded px-2 py-1 text-white" style={{ backgroundColor: row.color }}>{row.color}</span> },
+            { key: 'color', label: 'Color', render: (row) => <span className="rounded-lg px-2 py-1 text-white" style={{ backgroundColor: row.color }}>{row.color}</span> },
             {
               key: 'actions',
               label: 'Acciones',
               render: (row) => (
                 <div className="flex gap-2">
-                  <button onClick={() => openEdit(row)} className="rounded border px-2 py-1">Editar</button>
-                  <button onClick={() => toggle(row)} className="rounded border px-2 py-1">Cambiar estado</button>
+                  <button onClick={() => openEdit(row)} className="btn-secondary px-3 py-1.5">Editar</button>
+                  <button onClick={() => toggle(row)} className="btn-danger px-3 py-1.5">Cambiar estado</button>
                 </div>
               )
             }
@@ -119,10 +115,9 @@ export default function SkillsPage() {
       )}
 
       <Modal open={isEditOpen} title="Editar habilidad" onClose={closeEdit}>
-        <form onSubmit={submitEdit} className="space-y-3">
-          <div className="grid gap-2 md:grid-cols-2">
+        <form onSubmit={submitEdit} className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-2">
             <input
-              className="rounded border px-2 py-1"
               placeholder="Nombre"
               value={editForm.name}
               disabled={editingSkill?.type === 'break' || editingSkill?.type === 'rest'}
@@ -132,28 +127,27 @@ export default function SkillsPage() {
               type="color"
               value={editForm.color}
               onChange={(e) => setEditForm({ ...editForm, color: e.target.value })}
-              className="h-9 rounded border px-2"
+              className="h-10 w-full cursor-pointer p-1"
             />
           </div>
 
           <input
-            className="w-full rounded border px-2 py-1"
+            className="w-full"
             placeholder="Descripción"
             value={editForm.descripcion}
             onChange={(e) => setEditForm({ ...editForm, descripcion: e.target.value })}
           />
 
           {(editingSkill?.type === 'break' || editingSkill?.type === 'rest') && (
-            <p className="text-sm text-slate-500">El nombre de skills BREAK/REST no se puede editar.</p>
+            <p className="text-sm text-[#6b7280]">El nombre de skills BREAK/REST no se puede editar.</p>
           )}
 
           <div className="flex justify-end gap-2">
-            <button type="button" onClick={closeEdit} className="rounded border px-3 py-2">Cancelar</button>
-            <button className="rounded bg-slate-900 px-3 py-2 text-white">Guardar cambios</button>
+            <button type="button" onClick={closeEdit} className="btn-secondary">Cancelar</button>
+            <button className="btn-primary">Guardar cambios</button>
           </div>
         </form>
       </Modal>
-
     </section>
   );
 }

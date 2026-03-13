@@ -24,21 +24,21 @@ export default function DailySchedulesPage() {
   };
 
   return (
-    <section className="space-y-4">
-      <h2 className="text-xl font-semibold">Horarios por día</h2>
-      <div className="flex gap-2">
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="rounded border px-2 py-1" />
-        <input value={statuses.join(',')} onChange={(e) => setStatuses(e.target.value.split(',').map((s) => s.trim()).filter(Boolean))} className="rounded border px-2 py-1" />
-        <button onClick={load} className="rounded bg-slate-900 px-3 py-2 text-white">Buscar</button>
+    <section className="space-y-6">
+      <h2 className="panel-title">Horarios por día</h2>
+      <div className="card flex flex-wrap gap-3 p-4">
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        <input value={statuses.join(',')} onChange={(e) => setStatuses(e.target.value.split(',').map((s) => s.trim()).filter(Boolean))} />
+        <button onClick={load} className="btn-primary">Buscar</button>
       </div>
       {loading ? <Spinner /> : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {data.map((h) => (
-            <div key={h._id} className="rounded bg-white p-3 shadow">
-              <p className="font-medium">{h.user?.name} - {new Date(h.date).toISOString().slice(0, 10)} - {h.status}</p>
-              <div className="mt-2 flex flex-wrap gap-2">
+            <div key={h._id} className="card p-4">
+              <p className="font-semibold text-[#1f2937]">{h.user?.name} - {new Date(h.date).toISOString().slice(0, 10)} - {h.status}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
                 {h.blocks.map((b, i) => (
-                  <span key={i} className="rounded px-2 py-1 text-xs text-white" style={{ backgroundColor: b.skill?.color || '#334155' }}>
+                  <span key={i} className="rounded-lg px-3 py-1 text-xs text-white" style={{ backgroundColor: b.skill?.color || '#835da2' }}>
                     {b.start}-{b.end} {b.skill?.name || 'Habilidad'}
                   </span>
                 ))}

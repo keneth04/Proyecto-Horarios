@@ -45,36 +45,36 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
-      <form onSubmit={onSubmit} className="w-full max-w-sm rounded bg-white p-5 shadow">
+    <div className="flex min-h-screen items-center justify-center bg-[#f8f9fb] p-4">
+      <form onSubmit={onSubmit} className="w-full max-w-md rounded-2xl border border-[#eef0f4] bg-white p-6 shadow-sm md:p-8">
         <h1 className="mb-2 text-xl font-semibold">Restablecer contraseña</h1>
-        <p className="mb-4 text-sm text-slate-600">Define una contraseña nueva para tu cuenta.</p>
+        <p className="mb-5 text-sm text-[#4a4a4a]">Define una contraseña nueva para tu cuenta.</p>
 
-        <label className="mb-2 block text-sm">Nueva contraseña</label>
+        <label className="mb-2 block text-sm font-medium text-[#4a4a4a]">Nueva contraseña</label>
         <input
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="mb-3 w-full rounded border px-3 py-2"
+          className="mb-3 w-full"
           required
         />
 
-        <label className="mb-2 block text-sm">Confirmar contraseña</label>
+      <label className="mb-2 block text-sm font-medium text-[#4a4a4a]">Confirmar contraseña</label>
         <input
           type="password"
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
-          className="mb-4 w-full rounded border px-3 py-2"
+          className="mb-4 w-full"
           required
         />
 
-        <button disabled={loading || success} className="mb-3 w-full rounded bg-slate-900 px-3 py-2 text-white disabled:opacity-70">
+        <button disabled={loading || success} className="btn-primary mb-3 w-full">
           {loading ? <Spinner label="Guardando..." /> : 'Guardar nueva contraseña'}
         </button>
 
-        {success ? <p className="mb-3 text-sm text-green-700">Tu contraseña fue actualizada. Ya puedes iniciar sesión.</p> : null}
+        {success ? <p className="mb-3 text-sm text-emerald-700">Tu contraseña fue actualizada. Ya puedes iniciar sesión.</p> : null}
 
-        <Link to="/login" className="text-sm text-blue-600 hover:underline">
+        <Link to="/login" className="text-sm font-medium text-[#835da2] hover:text-[#724d91] hover:underline">
           Ir al inicio de sesión
         </Link>
       </form>

@@ -1,26 +1,26 @@
 export default function Table({ columns, rows }) {
   return (
-    <div className="overflow-x-auto rounded border bg-white">
+    <div className="overflow-x-auto rounded-xl border border-[#eef0f4] bg-white shadow-sm">
       <table className="min-w-full text-sm">
-        <thead className="bg-slate-100 text-left">
+        <thead className="bg-[#f8f9fb] text-left">
           <tr>
             {columns.map((col) => (
-              <th key={col.key} className="px-3 py-2 font-medium text-slate-700">{col.label}</th>
+              <th key={col.key} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#4a4a4a]">{col.label}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {rows.length === 0 && (
             <tr>
-              <td colSpan={columns.length} className="px-3 py-4 text-center text-slate-500">
+              <td colSpan={columns.length} className="px-4 py-6 text-center text-[#6b7280]">
                 Sin datos
               </td>
             </tr>
           )}
           {rows.map((row, idx) => (
-            <tr key={row.id || idx} className="border-t">
+            <tr key={row.id || idx} className="border-t border-[#eef0f4] transition hover:bg-[#f8f9fb]">
               {columns.map((col) => (
-                <td key={col.key} className="px-3 py-2">{col.render ? col.render(row) : row[col.key]}</td>
+                <td key={col.key} className="px-4 py-3 align-top">{col.render ? col.render(row) : row[col.key]}</td>
               ))}
             </tr>
           ))}

@@ -162,19 +162,19 @@ export default function UsersPage() {
   };
 
   return (
-    <section className="space-y-4">
-      <h2 className="text-xl font-semibold">Usuarios</h2>
-      <form onSubmit={create} className="space-y-2 rounded bg-white p-3 shadow">
+    <section className="space-y-6">
+      <h2 className="panel-title">Usuarios</h2>
+      <form onSubmit={create} className="card space-y-4 p-6">
 
-        <div className="grid gap-2 rounded bg-white p-3 shadow md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2">
         <input
-            className="rounded border px-2 py-1"
+            className="rounded-lg border border-[#d9dde6] px-3 py-2"
             placeholder="Buscar por nombre"
             value={nameFilter}
             onChange={(e) => setNameFilter(e.target.value)}
           />
           <select
-            className="rounded border px-2 py-1"
+            className="rounded-lg border border-[#d9dde6] px-3 py-2"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
           >
@@ -184,23 +184,23 @@ export default function UsersPage() {
           </select>
         </div>
 
-        <div className="grid grid-cols-5 gap-2">
-          <input className="rounded border px-2 py-1" placeholder="Nombre" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-          <input className="rounded border px-2 py-1" placeholder="Correo" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-          <input className="rounded border px-2 py-1" type="Contraseña" placeholder="Password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-          <select className="rounded border px-2 py-1" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}><option value="agente">agente</option><option value="admin">admin</option></select>
-          <input className="rounded border px-2 py-1" placeholder="Campaña" value={form.campaign} onChange={(e) => setForm({ ...form, campaign: e.target.value })} />
+        <div className="grid gap-3 lg:grid-cols-5">
+          <input className="rounded-lg border border-[#d9dde6] px-3 py-2" placeholder="Nombre" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          <input className="rounded-lg border border-[#d9dde6] px-3 py-2" placeholder="Correo" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+          <input className="rounded-lg border border-[#d9dde6] px-3 py-2" type="Contraseña" placeholder="Password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+          <select className="rounded-lg border border-[#d9dde6] px-3 py-2" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}><option value="agente">agente</option><option value="admin">admin</option></select>
+          <input className="rounded-lg border border-[#d9dde6] px-3 py-2" placeholder="Campaña" value={form.campaign} onChange={(e) => setForm({ ...form, campaign: e.target.value })} />
         </div>
 
         <div className="flex flex-wrap gap-2">
           {skills.map((skill) => (
-            <label key={skill._id} className="flex items-center gap-1 rounded border px-2 py-1">
+            <label key={skill._id} className="flex items-center gap-2 rounded-lg border border-[#d9dde6] bg-white px-3 py-2 text-sm">
               <input type="checkbox" checked={form.allowedSkills.includes(skill._id)} onChange={() => toggleSkill(skill._id)} />
               {skill.name}
             </label>
           ))}
         </div>
-        <button className="rounded bg-slate-900 px-3 py-2 text-white">Crear usuario</button>
+        <button className="btn-primary">Crear usuario</button>
       </form>
 
       <Table
@@ -216,8 +216,8 @@ export default function UsersPage() {
             label: 'Acciones',
             render: (row) => (
               <div className="flex gap-2">
-                <button onClick={() => openEdit(row)} className="rounded border  bg-green-300 px-2 py-1">Editar</button>
-                <button onClick={() => toggleStatus(row)} className="rounded border bg-red-300 px-2 py-1">Cambiar estado</button>
+                <button onClick={() => openEdit(row)} className="btn-secondary px-3 py-1.5">Editar</button>
+                <button onClick={() => toggleStatus(row)} className="btn-danger px-3 py-1.5">Cambiar estado</button>
               </div>
             )
           }
@@ -229,19 +229,19 @@ export default function UsersPage() {
         <form onSubmit={submitEdit} className="space-y-3">
           <div className="grid gap-2 md:grid-cols-2">
             <input
-              className="rounded border px-2 py-1"
+              className="rounded-lg border border-[#d9dde6] px-3 py-2"
               placeholder="Nombre"
               value={editForm.name}
               onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
             />
             <input
-              className="rounded border px-2 py-1"
+              className="rounded-lg border border-[#d9dde6] px-3 py-2"
               placeholder="Correo"
               value={editForm.email}
               onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
             />
             <select
-              className="rounded border px-2 py-1"
+              className="rounded-lg border border-[#d9dde6] px-3 py-2"
               value={editForm.role}
               onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
             >
@@ -249,7 +249,7 @@ export default function UsersPage() {
               <option value="admin">admin</option>
             </select>
             <input
-              className="rounded border px-2 py-1"
+              className="rounded-lg border border-[#d9dde6] px-3 py-2"
               placeholder="Campaña"
               value={editForm.campaign}
               onChange={(e) => setEditForm({ ...editForm, campaign: e.target.value })}
@@ -258,7 +258,7 @@ export default function UsersPage() {
 
           <div className="flex flex-wrap gap-2">
             {skills.map((skill) => (
-              <label key={skill._id} className="flex items-center gap-1 rounded border px-2 py-1">
+              <label key={skill._id} className="flex items-center gap-2 rounded-lg border border-[#d9dde6] bg-white px-3 py-2 text-sm">
                 <input
                   type="checkbox"
                   checked={editForm.allowedSkills.includes(skill._id)}
@@ -270,8 +270,8 @@ export default function UsersPage() {
           </div>
 
           <div className="flex justify-end gap-2">
-            <button type="button" onClick={closeEdit} className="rounded border px-3 py-2">Cancelar</button>
-            <button className="rounded bg-slate-900 px-3 py-2 text-white">Guardar cambios</button>
+            <button type="button" onClick={closeEdit} className="btn-secondary">Cancelar</button>
+            <button className="btn-primary">Guardar cambios</button>
           </div>
         </form>
       </Modal>

@@ -42,43 +42,33 @@ export default function StaffingPage() {
   }, []);
 
   return (
-    <section className="space-y-3">
-      <h2 className="text-xl font-semibold">Dotación por día</h2>
-      <div className="flex flex-wrap gap-2">
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="rounded border px-2 py-1" />
-        <select value={mode} onChange={(e) => setMode(e.target.value)} className="rounded border px-2 py-1">
+    <section className="space-y-6">
+      <h2 className="panel-title">Dotación por día</h2>
+      <div className="card flex flex-wrap gap-3 p-4">
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        <select value={mode} onChange={(e) => setMode(e.target.value)}>
           {MODES.map((option) => (
             <option key={option.value} value={option.value}>{option.label}</option>
           ))}
         </select>
 
-        <input
-          list="campaign-options"
-          value={campaign}
-          onChange={(e) => setCampaign(e.target.value)}
-          placeholder="Filtrar por campaña"
-          className="rounded border px-2 py-1"
-        />
+        <input list="campaign-options" value={campaign} onChange={(e) => setCampaign(e.target.value)} placeholder="Filtrar por campaña" />
         <datalist id="campaign-options">
           {campaignOptions.map((option) => <option key={option} value={option} />)}
         </datalist>
 
-        <button onClick={load} className="rounded bg-slate-900 px-3 py-2 text-white">Consultar</button>
+        <button onClick={load} className="btn-primary">Consultar</button>
       </div>
 
-      <div className="rounded bg-white p-3 shadow">
+      <div className="card p-4">
         {rows.map((row) => (
-          <div key={row.hour} className="border-b py-2">
-            <p className="font-medium">{row.hour}</p>
-            <div className="space-y-2 text-sm">
+          <div key={row.hour} className="border-b border-[#eef0f4] py-3 last:border-none">
+            <p className="font-semibold text-[#1f2937]">{row.hour}</p>
+            <div className="mt-2 space-y-2 text-sm">
               {row.skills.map((s, idx) => (
-                <div key={idx} className="rounded border px-2 py-1">
-                  <p>
-                    {s.skill?.name}: {s.totalAgents}
-                  </p>
-                  <p className="text-xs text-slate-600">
-                    Personas: {s.agents?.length ? s.agents.map((agent) => agent.name).join(', ') : 'Sin asignación'}
-                  </p>
+                <div key={idx} className="rounded-lg border border-[#eef0f4] px-3 py-2">
+                  <p>{s.skill?.name}: {s.totalAgents}</p>
+                  <p className="text-xs text-[#6b7280]">Personas: {s.agents?.length ? s.agents.map((agent) => agent.name).join(', ') : 'Sin asignación'}</p>
                 </div>
               ))}
             </div>

@@ -20,7 +20,7 @@ export function ToastProvider({ children }) {
         {items.map((item) => (
           <div
             key={item.id}
-            className={`rounded px-3 py-2 text-sm text-white shadow ${item.type === 'error' ? 'bg-red-500' : 'bg-slate-800'}`}
+            className={`rounded-lg px-4 py-2.5 text-sm text-white shadow-lg ${item.type === 'error' ? 'bg-[#e52e2e]' : 'bg-[#835da2]'}`}
           >
             {item.message}
           </div>

@@ -16,23 +16,38 @@ export default function AdminLayout() {
   const { logout, user } = useAuth();
 
   return (
-    <div className="flex min-h-screen">
-      <aside className="w-64 bg-slate-900 p-4 text-white">
-        <div className="mb-4 text-lg font-semibold">Administrador: {user?.name}</div>
-        <nav className="space-y-1">
+    <div className="flex min-h-screen bg-[#f8f9fb]">
+      <aside className="flex w-72 flex-col bg-[#835da2] p-6 text-white">
+        <div className="mb-8 flex items-center gap-3 border-b border-white/20 pb-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/20 text-xl font-semibold">ñ</div>
+          <div>
+            <p className="text-xs uppercase tracking-wider text-white/75">Logo principal</p>
+            <p className="text-sm font-semibold">Administrador: {user?.name}</p>
+          </div>
+        </div>
+        <nav className="space-y-1.5">
           {links.map((link) => (
             <NavLink
               key={link.to}
               to={link.to}
-              className={({ isActive }) => `block rounded px-3 py-2 ${isActive ? 'bg-slate-700' : 'hover:bg-slate-800'}`}
+              className={({ isActive }) => `block rounded-lg px-3 py-2.5 text-sm font-medium transition ${isActive ? 'bg-white text-[#835da2] shadow-sm' : 'text-white/90 hover:bg-white/15 hover:text-white'}`}
             >
               {link.label}
             </NavLink>
           ))}
         </nav>
-        <button onClick={() => logout()} className="mt-6 w-full rounded bg-red-500 px-3 py-2">Cerrar Sesión</button>
+        <button onClick={() => logout()} className="btn-danger mt-auto w-full">Cerrar Sesión</button>
       </aside>
-      <main className="flex-1 p-6">
+      <main className="flex-1 p-6 lg:p-8">
+        <header className="card mb-6 flex items-center justify-between p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-[#835da2] text-sm font-semibold text-white">ñ</div>
+            <div>
+              <h1 className="text-lg font-semibold text-[#1f2937]">Panel de administración</h1>
+              <p className="text-sm text-[#4a4a4a]">Gestiona horarios, agentes y habilidades.</p>
+            </div>
+          </div>
+        </header>
         <Outlet />
       </main>
     </div>

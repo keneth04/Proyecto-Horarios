@@ -87,31 +87,26 @@ export default function CreateDraftPage() {
   };
 
   return (
-    <section className="space-y-4">
-      <h2 className="text-xl font-semibold">Crear horario borrador</h2>
-      <div className="grid grid-cols-3 gap-2">
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="rounded border px-2 py-1" />
-        <select value={userId} onChange={(e) => setUserId(e.target.value)} className="rounded border px-2 py-1">{users.map((u) => <option value={u._id} key={u._id}>{u.name}</option>)}</select>
+    <section className="space-y-6">
+      <h2 className="panel-title">Crear horario borrador</h2>
+      <div className="card grid gap-3 p-4 md:grid-cols-3">
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        <select value={userId} onChange={(e) => setUserId(e.target.value)}>{users.map((u) => <option value={u._id} key={u._id}>{u.name}</option>)}</select>
       </div>
       {blocks.map((block, idx) => (
-        <div key={idx} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2">
-          <input value={block.start} onChange={(e) => setBlock(idx, 'start', e.target.value)} className="rounded border px-2 py-1" />
-          <input value={block.end} onChange={(e) => setBlock(idx, 'end', e.target.value)} className="rounded border px-2 py-1" />
-          <select value={block.skillId} disabled={!selectedUser} onChange={(e) => setBlock(idx, 'skillId', e.target.value)} className="rounded border px-2 py-1">
+        <div key={idx} className="card grid gap-3 p-4 md:grid-cols-[1fr_1fr_1fr_auto]">
+          <input value={block.start} onChange={(e) => setBlock(idx, 'start', e.target.value)} />
+          <input value={block.end} onChange={(e) => setBlock(idx, 'end', e.target.value)} />
+          <select value={block.skillId} disabled={!selectedUser} onChange={(e) => setBlock(idx, 'skillId', e.target.value)}>
             <option value="">{selectedUser ? 'Habilidad' : 'Selecciona un agente primero'}</option>
             {availableSkills.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
           </select>
-          <button
-            onClick={() => remove(idx)}
-            className="rounded border border-red-300 px-2 py-1 text-red-600"
-          >
-            Eliminar bloque
-          </button>
+          <button onClick={() => remove(idx)} className="btn-danger">Eliminar bloque</button>
         </div>
       ))}
-      <div className="flex gap-2">
-        <button onClick={add} className="rounded border px-3 py-2">Agregar bloque</button>
-        <button onClick={save} className="rounded bg-slate-900 px-3 py-2 text-white">Guardar borrador</button>
+      <div className="flex gap-3">
+        <button onClick={add} className="btn-secondary">Agregar bloque</button>
+        <button onClick={save} className="btn-primary">Guardar borrador</button>
       </div>
     </section>
   );

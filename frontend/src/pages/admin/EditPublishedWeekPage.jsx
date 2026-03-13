@@ -62,36 +62,21 @@ export default function EditPublishedWeekPage() {
   };
 
   const validateWeek = () => {
-    if (!week.length) {
-      return 'Debe cargar una semana antes de guardar';
-    }
+    if (!week.length) return 'Debe cargar una semana antes de guardar';
 
     for (let dayIndex = 0; dayIndex < week.length; dayIndex += 1) {
       const day = week[dayIndex];
 
-      if (!Array.isArray(day.blocks) || day.blocks.length === 0) {
-        return `Día ${day.date}: debe existir al menos un bloque`;
-      }
+      if (!Array.isArray(day.blocks) || day.blocks.length === 0) return `Día ${day.date}: debe existir al menos un bloque`;
 
       for (let blockIndex = 0; blockIndex < day.blocks.length; blockIndex += 1) {
         const block = day.blocks[blockIndex];
         const blockLabel = `Día ${day.date}, bloque ${blockIndex + 1}`;
 
-        if (!block.start || !block.end || !block.skillId) {
-          return `${blockLabel}: faltan datos obligatorios (inicio, fin o skill)`;
-        }
-
-        if (!isValidHour(block.start)) {
-          return `${blockLabel}: la hora de inicio debe tener formato HH:mm`;
-        }
-
-        if (!isValidHour(block.end)) {
-          return `${blockLabel}: la hora de fin debe tener formato HH:mm`;
-        }
-
-        if (block.end <= block.start) {
-          return `${blockLabel}: la hora fin debe ser mayor a la hora inicio`;
-        }
+        if (!block.start || !block.end || !block.skillId) return `${blockLabel}: faltan datos obligatorios (inicio, fin o skill)`;
+        if (!isValidHour(block.start)) return `${blockLabel}: la hora de inicio debe tener formato HH:mm`;
+        if (!isValidHour(block.end)) return `${blockLabel}: la hora de fin debe tener formato HH:mm`;
+        if (block.end <= block.start) return `${blockLabel}: la hora fin debe ser mayor a la hora inicio`;
       }
     }
 
@@ -115,37 +100,30 @@ export default function EditPublishedWeekPage() {
   };
 
   return (
-    <section className="space-y-3">
-      <h2 className="text-xl font-semibold">Editar semana publicada</h2>
-      <div className="flex gap-2">
-        <select value={userId} onChange={(e) => setUserId(e.target.value)} className="rounded border px-2 py-1">{users.map((u) => <option key={u._id} value={u._id}>{u.name}</option>)}</select>
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="rounded border px-2 py-1" />
-        <button onClick={load} className="rounded border px-3 py-2">Cargar</button>
-        <button onClick={save} className="rounded bg-slate-900 px-3 py-2 text-white">Guardar</button>
+    <section className="space-y-6">
+      <h2 className="panel-title">Editar semana publicada</h2>
+      <div className="card flex flex-wrap gap-3 p-4">
+        <select value={userId} onChange={(e) => setUserId(e.target.value)}>{users.map((u) => <option key={u._id} value={u._id}>{u.name}</option>)}</select>
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        <button onClick={load} className="btn-secondary">Cargar</button>
+        <button onClick={save} className="btn-primary">Guardar</button>
       </div>
-      <div className="space-y-2">
+      <div className="space-y-4">
         {week.map((day, dayIdx) => (
-          <div key={day.id} className="rounded bg-white p-3 shadow">
-            <p className="mb-2 font-medium">{day.date}</p>
+          <div key={day.id} className="card p-4">
+            <p className="mb-3 font-semibold text-[#1f2937]">{day.date}</p>
             {day.blocks.map((block, blockIdx) => (
-              <div key={blockIdx} className="mb-1 grid grid-cols-[1fr_1fr_1fr_auto] gap-2">
-                <input value={block.start} onChange={(e) => updateBlock(dayIdx, blockIdx, 'start', e.target.value)} className="rounded border px-2 py-1" />
-                <input value={block.end} onChange={(e) => updateBlock(dayIdx, blockIdx, 'end', e.target.value)} className="rounded border px-2 py-1" />
-                <select value={block.skillId} onChange={(e) => updateBlock(dayIdx, blockIdx, 'skillId', e.target.value)} className="rounded border px-2 py-1">
+              <div key={blockIdx} className="mb-2 grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto]">
+                <input value={block.start} onChange={(e) => updateBlock(dayIdx, blockIdx, 'start', e.target.value)} />
+                <input value={block.end} onChange={(e) => updateBlock(dayIdx, blockIdx, 'end', e.target.value)} />
+                <select value={block.skillId} onChange={(e) => updateBlock(dayIdx, blockIdx, 'skillId', e.target.value)}>
                   <option value="">Habilidad</option>
                   {skills.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
                 </select>
-                <button
-                  onClick={() => removeBlock(dayIdx, blockIdx)}
-                  className="rounded border border-red-300 px-2 py-1 text-red-600"
-                >
-                  Eliminar bloque
-                </button>
+                <button onClick={() => removeBlock(dayIdx, blockIdx)} className="btn-danger">Eliminar bloque</button>
               </div>
             ))}
-            <button onClick={() => addBlock(dayIdx)} className="mt-2 rounded border px-3 py-1">
-              Agregar bloque
-            </button>
+            <button onClick={() => addBlock(dayIdx)} className="btn-secondary mt-2">Agregar bloque</button>
           </div>
         ))}
       </div>
