@@ -15,6 +15,8 @@ const WEEKLY_REQUIRED_MINUTES = WEEKLY_REQUIRED_HOURS * 60;
 const STRICT_ISO_DATE_REGEX = /^(\d{4})-(\d{2})-(\d{2})$/;
 const STRICT_DATE_ERROR_MESSAGE = 'Fecha inválida, formato esperado YYYY-MM-DD';
 const ALLOWED_SCHEDULE_STATUSES = ['borrador', 'publicado', 'archivado'];
+const ALLOWED_EDITABLE_STATUSES = ['borrador', 'publicado'];
+const ALLOWED_EDIT_MODES = ['day', 'week'];
 
 const inferSkillTypeFromName = (skill = {}) => {
   const upperName = String(skill.name || '').trim().toUpperCase();
@@ -453,6 +455,36 @@ const getPublishedWeekByUser = async ({ userId, date }) => {
 
   return {
     week: { from: weekStart, to: weekEnd },
+    schedules: await hydrateSchedulesWithUserAndSkills({ horarios, usersCollection, skillsCollection })
+  };
+};
+
+const getWeekByUser = async ({ userId, date, status = 'publicado' }) => {
+  assertValidObjectId(userId, 'ID de usuario inválido');
+
+  if (!ALLOWED_EDITABLE_STATUSES.includes(status)) {
+    throw new createError.BadRequest('status inválido, valores permitidos: borrador | publicado');
+  }
+
+  const collection = await Database(COLLECTION);
+  const usersCollection = await Database(USERS_COLLECTION);
+  const skillsCollection = await Database(SKILLS_COLLECTION);
+
+  const normalizedDate = normalizeDate(date || new Date());
+  const { weekStart, weekEnd } = getWeekRange(normalizedDate);
+
+  const horarios = await collection
+    .find({
+      userId: new ObjectId(userId),
+      status,
+      date: { $gte: weekStart, $lte: weekEnd }
+    })
+    .sort({ date: 1 })
+    .toArray();
+
+  return {
+    week: { from: weekStart, to: weekEnd },
+    status,
     schedules: await hydrateSchedulesWithUserAndSkills({ horarios, usersCollection, skillsCollection })
   };
 };
@@ -1122,63 +1154,21 @@ const publishByDate = async (date) => {
   };
 };
 
-const editPublishedWeek = async ({ userId, date, schedules, editedBy }) => {
-  const collection = await Database(COLLECTION);
-  const skillsCollection = await Database(SKILLS_COLLECTION);
-  const usersCollection = await Database(USERS_COLLECTION);
-
-  assertValidObjectId(userId, 'UserId inválido');
-  assertValidObjectId(editedBy, 'EditedBy inválido');
-
-  if (!date || !Array.isArray(schedules) || schedules.length !== 7) {
-    throw new createError.BadRequest('Debe enviar exactamente los 7 días de la semana');
-  }
-
-  const normalizedWeekDate = normalizeDate(date);
-  const { weekStart, weekEnd } = getWeekRange(normalizedWeekDate);
-
-  const existingPublished = await collection
-    .find({
-      userId: new ObjectId(userId),
-      status: 'publicado',
-      date: { $gte: weekStart, $lte: weekEnd }
-    })
-    .toArray();
-
-  if (existingPublished.length !== 7) {
-    throw new createError.BadRequest('La semana publicada está incompleta o no existe');
-  }
+const validateAndPrepareWeekSchedules = async ({
+  schedules,
+  userId,
+  weekStart,
+  weekEnd,
+  collection,
+  skillsCollection,
+  usersCollection,
+  existingMap
+}) => {
 
   const userData = await usersCollection.findOne({ _id: new ObjectId(userId) });
   const userName = userData?.name || 'Usuario desconocido';
   const allowedSet = new Set((Array.isArray(userData?.allowedSkills) ? userData.allowedSkills : []).map((skillId) => skillId.toString()));
 
-  // Map id -> fecha original
-  const existingMap = {};
-  existingPublished.forEach((doc) => {
-    existingMap[doc._id.toString()] = normalizeDate(doc.date);
-  });
-
-  for (const day of schedules) {
-    assertValidObjectId(day.id, `El identificador ${day.id} no es válido`);
-
-    if (!existingMap[day.id]) {
-      throw new createError.BadRequest(
-        `El identificador ${day.id} no pertenece a la semana publicada del agente o no existe`
-      );
-    }
-
-    const originalDate = existingMap[day.id];
-    const newDate = normalizeDate(day.date);
-
-    if (originalDate !== newDate) {
-      throw new createError.BadRequest(
-        `El identificador ${day.id} corresponde a la fecha ${originalDate} y no puede ser reasignado a ${newDate}`
-      );
-    }
-  }
-
-  // SkillsMap para todo lo que venga en schedules (1 query)
   const allSkillIds = schedules.flatMap((d) => (d.blocks || []).map((b) => b.skillId?.toString()));
   const skillsMap = await buildSkillsMapFromIds(skillsCollection, allSkillIds.filter(Boolean));
 
@@ -1187,12 +1177,30 @@ const editPublishedWeek = async ({ userId, date, schedules, editedBy }) => {
   const uniqueDays = new Set();
   let absenceDays = 0;
 
+  const normalizedSchedules = [];
+
   for (const day of schedules) {
+    assertValidObjectId(day.id, `El identificador ${day.id} no es válido`);
+
+    if (!existingMap[day.id]) {
+      throw new createError.BadRequest(
+        `El identificador ${day.id} no pertenece a la semana seleccionada del agente o no existe`
+      );
+    }
+
     const scheduleDate = parseStrictISODateOrThrow(day.date);
     const dayKey = normalizeDate(scheduleDate);
 
+    const originalDate = existingMap[day.id];
+    if (originalDate !== dayKey) {
+      throw new createError.BadRequest(
+        `El identificador ${day.id} corresponde a la fecha ${originalDate} y no puede reasignarse a ${dayKey}`
+      );
+    }
+  
+  
     if (uniqueDays.has(dayKey)) {
-      throw new createError.BadRequest(`Día duplicado en la semana: ${dayKey}`);
+      throw new createError.BadRequest(`Error semanal: día duplicado en la semana (${dayKey})`)
     }
     uniqueDays.add(dayKey);
 
@@ -1201,10 +1209,10 @@ const editPublishedWeek = async ({ userId, date, schedules, editedBy }) => {
     try {
       validatedBlocks = validateBlocksStructure(day.blocks);
     } catch (error) {
-      throw new createError.BadRequest(`Error en día ${dayKey}: ${error.message}`);
+      throw new createError.BadRequest(`Error diario en ${dayKey}: ${error.message}`);
     }
 
-    // Validación 4h + rest
+    
     try {
       validateDayBlocksBusinessRules({
         blocks: validatedBlocks,
@@ -1213,12 +1221,16 @@ const editPublishedWeek = async ({ userId, date, schedules, editedBy }) => {
         userName
       });
     } catch (error) {
-      throw new createError.BadRequest(`Error en día ${dayKey}: ${error.message}`);
+      throw new createError.BadRequest(`Error diario en ${dayKey}: ${error.message}`);
     }
 
-    // total horas operativas + detectar restDay
     for (const block of validatedBlocks) {
-      const skill = getSkillFromMapOrThrow(skillsMap, block.skillId, 'Una de las habilidades asignadas no existe o está inactiva');
+      const skill = getSkillFromMapOrThrow(
+        skillsMap,
+        block.skillId,
+        `Error diario en ${dayKey}: una de las habilidades asignadas no existe o está inactiva`
+      );
+
       const duration = timeToMinutes(block.end) - timeToMinutes(block.start);
 
       if (skill.type === 'rest') {
@@ -1228,22 +1240,21 @@ const editPublishedWeek = async ({ userId, date, schedules, editedBy }) => {
       }
 
       if (skill.type === 'absence') {
-        if (validatedBlocks.length !== 1) {
-          throw new createError.BadRequest('La ausencia no puede mezclarse con otros bloques');
-        }
-
-        if (block.start !== '08:00' || block.end !== '21:00') {
-          throw new createError.BadRequest('La ausencia debe cubrir la jornada completa (08:00 - 21:00)');
-        }
 
         absenceDays += 1;
+      }
     }
-    }
+    
+    normalizedSchedules.push({
+      ...day,
+      date: scheduleDate,
+      blocks: validatedBlocks
+    });
   }
   
   if (!restDayDate) {
     throw new createError.BadRequest(
-      `El usuario ${userName} no tiene su día de descanso semanal obligatorio`
+      `Error semanal: el usuario ${userName} no tiene su día de descanso semanal obligatorio`
     );
   }
 
@@ -1251,23 +1262,21 @@ const editPublishedWeek = async ({ userId, date, schedules, editedBy }) => {
 
   if (totalMinutes !== requiredMinutes) {
     throw new createError.BadRequest(
-      `La semana del agente ${userName} tiene ${totalMinutes / 60} horas operativas. Debe tener exactamente ${requiredMinutes / 60} horas`
+      `Error semanal: la semana del agente ${userName} tiene ${totalMinutes / 60} horas operativas. Debe tener exactamente ${requiredMinutes / 60} horas`
     );
   }
 
-  // Validación 3–9 días entre descansos (misma lógica, pero sin N queries por skill)
   const previousRest = await collection
     .find({
       userId: new ObjectId(userId),
       status: { $in: ['publicado', 'archivado'] },
-      date: { $lt: restDayDate }
+      date: { $lt: weekStart }
     })
     .sort({ date: -1 })
     .toArray();
 
   let lastRestDate = null;
 
-  // Para detectar rest en históricos, necesitamos skillsMap de esos bloques también
   const prevSkillIds = previousRest.flatMap((s) => s.blocks.map((b) => b.skillId.toString()));
   const prevSkillsMap = prevSkillIds.length
     ? await buildSkillsMapFromIds(skillsCollection, prevSkillIds)
@@ -1288,20 +1297,137 @@ const editPublishedWeek = async ({ userId, date, schedules, editedBy }) => {
     const diffDays = Math.floor((restDayDate - lastRestDate) / (1000 * 60 * 60 * 24));
     if (diffDays < 3 || diffDays > 9) {
       throw new createError.BadRequest(
-        `El descanso del agente ${userName} incumple la regla de 3 a 9 días entre descansos`
+        `Error semanal: el descanso del agente ${userName} incumple la regla de 3 a 9 días entre descansos`
       );
     }
   }
+  
+    return normalizedSchedules;
+};
 
-  // OK => actualizar los mismos documentos
-  for (const day of schedules) {
-    const strictScheduleDate = parseStrictISODateOrThrow(day.date);
+const editWeek = async ({ userId, date, status = 'publicado', mode = 'week', schedule, schedules, editedBy }) => {
+  const collection = await Database(COLLECTION);
+  const skillsCollection = await Database(SKILLS_COLLECTION);
+  const usersCollection = await Database(USERS_COLLECTION);
+
+  assertValidObjectId(userId, 'UserId inválido');
+  assertValidObjectId(editedBy, 'EditedBy inválido');
+
+  if (!ALLOWED_EDITABLE_STATUSES.includes(status)) {
+    throw new createError.BadRequest('status inválido, valores permitidos: borrador | publicado');
+  }
+
+  if (!ALLOWED_EDIT_MODES.includes(mode)) {
+    throw new createError.BadRequest('mode inválido, valores permitidos: day | week');
+  }
+
+  if (!date) {
+    throw new createError.BadRequest('date es obligatorio');
+  }
+
+  const normalizedWeekDate = normalizeDate(date);
+  const { weekStart, weekEnd } = getWeekRange(normalizedWeekDate);
+
+  const existingWeek = await collection
+    .find({
+      userId: new ObjectId(userId),
+      status,
+      date: { $gte: weekStart, $lte: weekEnd }
+    })
+    .toArray();
+
+  if (!existingWeek.length) {
+    throw new createError.BadRequest(`No existe una semana ${status} para ese agente y fecha`);
+  }
+
+  const existingMap = {};
+  existingWeek.forEach((doc) => {
+    existingMap[doc._id.toString()] = normalizeDate(doc.date);
+  });
+
+  if (mode === 'day') {
+    if (!schedule || !schedule.id || !schedule.date || !Array.isArray(schedule.blocks)) {
+      throw new createError.BadRequest('Para edición diaria debe enviar schedule con id, date y blocks');
+    }
+
+    assertValidObjectId(schedule.id, `El identificador ${schedule.id} no es válido`);
+
+    if (!existingMap[schedule.id]) {
+      throw new createError.BadRequest(`El identificador ${schedule.id} no pertenece a la semana ${status} seleccionada`);
+    }
+
+    const dayKey = normalizeDate(schedule.date);
+    if (existingMap[schedule.id] !== dayKey) {
+      throw new createError.BadRequest(
+        `Error diario en ${dayKey}: el identificador ${schedule.id} corresponde a ${existingMap[schedule.id]} y no puede reasignarse`
+      );
+    }
+
+    const userData = await usersCollection.findOne({ _id: new ObjectId(userId) });
+    const userName = userData?.name || 'Usuario desconocido';
+    const allowedSet = new Set((Array.isArray(userData?.allowedSkills) ? userData.allowedSkills : []).map((skillId) => skillId.toString()));
+
+    let validatedBlocks;
+    try {
+      validatedBlocks = validateBlocksStructure(schedule.blocks);
+    } catch (error) {
+      throw new createError.BadRequest(`Error diario en ${dayKey}: ${error.message}`);
+    }
+
+    const skillIds = validatedBlocks.map((b) => String(b.skillId));
+    const skillsMap = await buildSkillsMapFromIds(skillsCollection, skillIds);
+
+    try {
+      validateDayBlocksBusinessRules({
+        blocks: validatedBlocks,
+        skillsMap,
+        allowedSkillsSet: allowedSet,
+        userName
+      });
+    } catch (error) {
+      throw new createError.BadRequest(`Error diario en ${dayKey}: ${error.message}`);
+    }
+
 
     await collection.updateOne(
-      { _id: new ObjectId(day.id), status: 'publicado' },
+      { _id: new ObjectId(schedule.id), userId: new ObjectId(userId), status },
       {
         $set: {
-          date: strictScheduleDate,
+          blocks: validatedBlocks.map((b) => ({ ...b, skillId: new ObjectId(b.skillId) })),
+          editedAt: new Date(),
+          editedBy: new ObjectId(editedBy)
+        }
+      }
+    );
+
+    return { edited: true, mode, status, updatedDays: 1 };
+  }
+
+  if (!Array.isArray(schedules) || schedules.length !== 7) {
+    throw new createError.BadRequest('Para edición semanal debe enviar exactamente los 7 días de la semana');
+  }
+
+  if (existingWeek.length !== 7) {
+    throw new createError.BadRequest(`La semana ${status} está incompleta y no puede editarse en modo semanal`);
+  }
+
+  const normalizedSchedules = await validateAndPrepareWeekSchedules({
+    schedules,
+    userId,
+    weekStart,
+    weekEnd,
+    collection,
+    skillsCollection,
+    usersCollection,
+    existingMap
+  });
+
+  for (const day of normalizedSchedules) {
+    await collection.updateOne(
+      { _id: new ObjectId(day.id), userId: new ObjectId(userId), status },
+      {
+        $set: {
+          date: day.date,
           blocks: day.blocks.map((b) => ({
             start: b.start,
             end: b.end,
@@ -1314,7 +1440,18 @@ const editPublishedWeek = async ({ userId, date, schedules, editedBy }) => {
     );
   }
 
-  return { edited: true };
+  return { edited: true, mode, status, updatedDays: normalizedSchedules.length };
+};
+
+const editPublishedWeek = async ({ userId, date, schedules, editedBy }) => {
+  return editWeek({
+    userId,
+    date,
+    status: 'publicado',
+    mode: 'week',
+    schedules,
+    editedBy
+  });
 };
 
 module.exports.HorariosService = {
@@ -1324,11 +1461,13 @@ module.exports.HorariosService = {
   getPublishedByUserId,
   getSchedulesByDate,
   getPublishedWeekByUser,
+  getWeekByUser,
   getPublishedWeekAllAgents,
   getStaffingTableByDate,
   getWeeklyHoursReport,
   create,
   update,
   publishByDate,
-  editPublishedWeek
+  editPublishedWeek,
+  editWeek
 };

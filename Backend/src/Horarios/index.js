@@ -25,6 +25,14 @@ module.exports.HorariosAPI = (app) => {
     HorariosController.getPublishedWeekByUser
   );
 
+   // 📌 ADMIN - ver semana por agente y estado (borrador/publicado)
+  router.get(
+    '/semana/usuario/:userId',
+    AuthMiddleware,
+    RoleMiddleware(['admin']),
+    HorariosController.getWeekByUser
+  );
+
   // 📌 ADMIN - ver semana publicada de todos los agentes
   router.get(
     '/semana-publicada',
@@ -72,6 +80,14 @@ module.exports.HorariosAPI = (app) => {
     AuthMiddleware,
     RoleMiddleware(['admin']),
     HorariosController.editPublishedWeek
+  );
+  
+  // 📌 ADMIN - editar semana o día por estado (borrador/publicado)
+  router.patch(
+    '/editar-semana',
+    AuthMiddleware,
+    RoleMiddleware(['admin']),
+    HorariosController.editWeek
   );
 
   // 📌 ADMIN - ver horarios por userId

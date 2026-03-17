@@ -71,6 +71,18 @@ module.exports.HorariosController = {
     }
   },
 
+  getWeekByUser: async (req, res, next) => {
+    try {
+      const { userId } = req.params;
+      const { date, status } = req.query;
+
+      const week = await HorariosService.getWeekByUser({ userId, date, status });
+      Response.success(res, 200, 'Semana del agente', week);
+    } catch (error) {
+      next(error);
+    }
+  },
+
   getPublishedWeekAllAgents: async (req, res, next) => {
     try {
       const { date } = req.query;
@@ -168,6 +180,19 @@ module.exports.HorariosController = {
       });
 
       Response.success(res, 200, 'Semana publicada editada correctamente', result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+    editWeek: async (req, res, next) => {
+    try {
+      const result = await HorariosService.editWeek({
+        ...req.body,
+        editedBy: req.user.id
+      });
+
+      Response.success(res, 200, 'Semana editada correctamente', result);
     } catch (error) {
       next(error);
     }

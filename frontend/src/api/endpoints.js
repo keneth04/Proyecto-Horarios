@@ -25,7 +25,9 @@ export const HorariosApi = {
   create: (payload) => api.post('/horarios', payload),
   publish: (date) => api.post('/horarios/publicar', { date }),
   weekByUser: ({ userId, date }) => api.get(`/horarios/semana-publicada/usuario/${userId}?date=${date}`),
+  weekByUserWithStatus: ({ userId, date, status }) => api.get(`/horarios/semana/usuario/${userId}?date=${date}&status=${status}`),
   editWeek: (payload) => api.patch('/horarios/editar-semana-publicada', payload),
+  editWeekByMode: (payload) => api.patch('/horarios/editar-semana', payload),
   staffingByDay: ({ date, statuses, mode, campaign }) => {
     const params = new URLSearchParams();
     params.set('date', date);
