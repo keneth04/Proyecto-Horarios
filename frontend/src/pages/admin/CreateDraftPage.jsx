@@ -21,13 +21,15 @@ export default function CreateDraftPage() {
   const availableSkills = useMemo(() => {
     if (!selectedUser) return [];
 
+
     const allowedSkillIds = new Set(
       (Array.isArray(selectedUser.allowedSkills) ? selectedUser.allowedSkills : [])
         .map((skillId) => String(skillId))
     );
 
+
     return skills.filter((skill) => {
-      if (skill.type === 'absence') {
+      if (skill.type === 'absence' || skill.type === 'break' || skill.type === 'rest' ) {
         return true;
       }
 
