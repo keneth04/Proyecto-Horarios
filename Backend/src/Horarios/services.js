@@ -10,7 +10,7 @@ const SKILLS_COLLECTION = 'skills';
 const DAY_START = 8 * 60;     // 08:00
 const DAY_END = 21 * 60;      // 21:00
 const MIN_BLOCK_DURATION = 30; // minutos
-const WEEKLY_REQUIRED_HOURS = 42;
+const WEEKLY_REQUIRED_HOURS = 44;
 const WEEKLY_REQUIRED_MINUTES = WEEKLY_REQUIRED_HOURS * 60;
 const STRICT_ISO_DATE_REGEX = /^(\d{4})-(\d{2})-(\d{2})$/;
 const STRICT_DATE_ERROR_MESSAGE = 'Fecha inválida, formato esperado YYYY-MM-DD';
@@ -925,7 +925,7 @@ const update = async (id, body) => {
         if (dayHasAbsence) absenceDays += 1;
       }
 
-      // ✅ requerido variable: 42h - 7h por día absence
+      // ✅ requerido variable: 44h - 7h por día absence
       const requiredMinutes = WEEKLY_REQUIRED_MINUTES - (absenceDays * 420);
 
       if (totalOperativeMinutes !== requiredMinutes) {
