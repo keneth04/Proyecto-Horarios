@@ -61,14 +61,34 @@ export default function StaffingPage() {
       </div>
 
       <div className="card p-4">
+        {!rows.length && (
+          <p className="text-sm text-[#6b7280]">No hay datos de dotación para los filtros seleccionados.</p>
+        )}
         {rows.map((row) => (
-          <div key={row.hour} className="border-b border-[#eef0f4] py-3 last:border-none">
-            <p className="font-semibold text-[#1f2937]">{row.hour}</p>
-            <div className="mt-2 space-y-2 text-sm">
-              {row.skills.map((s, idx) => (
-                <div key={idx} className="rounded-lg border border-[#eef0f4] px-3 py-2">
-                  <p>{s.skill?.name}: {s.totalAgents}</p>
-                  <p className="text-xs text-[#6b7280]">Personas: {s.agents?.length ? s.agents.map((agent) => agent.name).join(', ') : 'Sin asignación'}</p>
+           <div key={row.hour} className="rounded-xl border border-[#e4e7ec] bg-white p-4 shadow-sm [&:not(:last-child)]:mb-4">
+            <p className="text-base font-semibold text-[#1f2937]">Franja: {row.hour}</p>
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              {row.skills.map((skillRow, idx) => (
+                <div key={idx} className="rounded-lg border border-[#eef0f4] bg-[#f8fafc] p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-semibold text-[#111827]">{skillRow.skill?.name || 'Skill sin nombre'}</p>
+                    <span className="rounded-full bg-white px-2 py-1 text-xs font-semibold text-[#374151]">
+                      {skillRow.totalAgents} {skillRow.totalAgents === 1 ? 'persona' : 'personas'}
+                    </span>
+                  </div>
+
+                  <p className="mt-2 text-xs font-medium uppercase tracking-wide text-[#6b7280]">Personas</p>
+                  <ul className="mt-1 space-y-1 text-sm text-[#374151]">
+                    {skillRow.agents?.length ? (
+                      skillRow.agents.map((agent) => (
+                        <li key={agent.id || agent.name} className="rounded bg-white px-2 py-1">
+                          {agent.name}
+                        </li>
+                      ))
+                    ) : (
+                      <li className="rounded bg-white px-2 py-1 text-[#6b7280]">Sin asignación</li>
+                    )}
+                  </ul>
                 </div>
               ))}
             </div>
