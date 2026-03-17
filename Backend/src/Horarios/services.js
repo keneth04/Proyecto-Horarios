@@ -148,15 +148,16 @@ const normalizeDate = (date) => {
   throw new createError.BadRequest(STRICT_DATE_ERROR_MESSAGE);
 };
 
-// Semana SÁBADO → VIERNES (UTC)
+// Semana LUNES → DOMINGO (UTC)
 const getWeekRange = (dateString) => {
   const d = parseStrictISODateOrThrow(dateString);
   const day = d.getUTCDay();
 
-  const diffToSaturday = (day === 6) ? 0 : day + 1;
+  // getUTCDay: 0=domingo, 1=lunes, ... 6=sábado
+  const diffToMonday = (day + 6) % 7;
 
   const weekStart = new Date(d);
-  weekStart.setUTCDate(d.getUTCDate() - diffToSaturday);
+  weekStart.setUTCDate(d.getUTCDate() - diffToMonday);
   weekStart.setUTCHours(0, 0, 0, 0);
 
   const weekEnd = new Date(weekStart);
