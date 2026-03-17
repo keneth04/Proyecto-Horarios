@@ -362,10 +362,22 @@ const getPublishedByUserId = async (userId) => {
 
   const collection = await Database(COLLECTION);
   const skillsCollection = await Database(SKILLS_COLLECTION);
+  
+  const today = normalizeDate(new Date());
+  const { weekStart: currentWeekStart } = getWeekRange(today);
+  const nextWeekStart = new Date(currentWeekStart);
+  nextWeekStart.setUTCDate(currentWeekStart.getUTCDate() + 7);
+  const nextWeekEnd = new Date(nextWeekStart);
+  nextWeekEnd.setUTCDate(nextWeekStart.getUTCDate() + 6);
+  nextWeekEnd.setUTCHours(23, 59, 59, 999);
 
   const horarios = await collection
-    .find({ userId: new ObjectId(userId), status: 'publicado' })
-    .sort({ date: -1 })
+    .find({
+      userId: new ObjectId(userId),
+      status: 'publicado',
+      date: { $gte: currentWeekStart, $lte: nextWeekEnd }
+    })
+    .sort({ date: 1 })
     .toArray();
 
   if (!horarios.length) return [];
@@ -1135,9 +1147,19 @@ const publishByDate = async (date) => {
       }
     }
 
-    // Archivar semana publicada anterior SOLO de este agente
+    const today = normalizeDate(new Date());
+    const { weekStart: currentWeekStart } = getWeekRange(today);
+
+    // Archivar semanas publicadas antiguas de este agente.
+    // Se conserva la semana actual en curso para que el agente no pierda visibilidad
+    // cuando se publica anticipadamente la próxima semana.
+
     await collection.updateMany(
-      { userId: new ObjectId(userId), status: 'publicado' },
+      {
+        userId: new ObjectId(userId),
+        status: 'publicado',
+        date: { $lt: currentWeekStart }
+      },
       { $set: { status: 'archivado', archivedAt: new Date() } }
     );
   }
