@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { HorariosApi, SkillsApi, UsersApi } from '../../api/endpoints';
 import { useToast } from '../../components/Toast';
 import { getErrorMessage, isValidHour } from '../../utils/helpers';
+import { buildAllowedSkillsSet, getAllowedSkillsForUser } from '../../utils/skills';
 
 const EMPTY_BLOCK = { start: '08:00', end: '09:00', skillId: '' };
 
@@ -13,6 +14,22 @@ export default function EditPublishedWeekPage() {
   const [week, setWeek] = useState([]);
   const { push } = useToast();
 
+  const selectedUser = useMemo(
+    () => users.find((user) => String(user._id) === String(userId)) || null,
+    [users, userId]
+  );
+
+  const availableSkills = useMemo(() => (
+    getAllowedSkillsForUser({ skills, user: selectedUser })
+  ), [skills, selectedUser]);
+
+  const availableSkillIds = useMemo(() => buildAllowedSkillsSet(availableSkills), [availableSkills]);
+
+  const skillsById = useMemo(() => skills.reduce((acc, skill) => {
+    acc[String(skill._id)] = skill;
+    return acc;
+  }, {}), [skills]);
+
   useEffect(() => {
     Promise.all([UsersApi.list(), SkillsApi.list()]).then(([u, s]) => {
       const agents = u.data.body.filter((item) => item.role === 'agente');
@@ -21,6 +38,20 @@ export default function EditPublishedWeekPage() {
       setSkills(s.data.body.filter((skill) => skill.status === 'active'));
     }).catch((error) => push(getErrorMessage(error), 'error'));
   }, []);
+
+  useEffect(() => {
+    if (!selectedUser) return;
+
+    setWeek((prev) => prev.map((day) => ({
+      ...day,
+      blocks: day.blocks.map((block) => {
+        if (!block.skillId) return block;
+        if (availableSkillIds.has(String(block.skillId))) return block;
+
+        return { ...block, skillId: '' };
+      })
+    })));
+  }, [availableSkillIds, selectedUser]);
 
   const load = async () => {
     try {
@@ -61,6 +92,8 @@ export default function EditPublishedWeekPage() {
     }));
   };
 
+  const getSkillName = (skillId) => skillsById[String(skillId)]?.name || String(skillId);
+
   const validateWeek = () => {
     if (!week.length) return 'Debe cargar una semana antes de guardar';
 
@@ -77,6 +110,11 @@ export default function EditPublishedWeekPage() {
         if (!isValidHour(block.start)) return `${blockLabel}: la hora de inicio debe tener formato HH:mm`;
         if (!isValidHour(block.end)) return `${blockLabel}: la hora de fin debe tener formato HH:mm`;
         if (block.end <= block.start) return `${blockLabel}: la hora fin debe ser mayor a la hora inicio`;
+
+        if (!availableSkillIds.has(String(block.skillId))) {
+          const agentName = selectedUser?.name || 'Agente sin nombre';
+          return `La skill “${getSkillName(block.skillId)}” no está asignada al agente “${agentName}”. Solo puedes usar skills predeterminadas o skills operativas asignadas al agente.`;
+        }
       }
     }
 
@@ -118,7 +156,7 @@ export default function EditPublishedWeekPage() {
                 <input value={block.end} onChange={(e) => updateBlock(dayIdx, blockIdx, 'end', e.target.value)} />
                 <select value={block.skillId} onChange={(e) => updateBlock(dayIdx, blockIdx, 'skillId', e.target.value)}>
                   <option value="">Habilidad</option>
-                  {skills.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
+                  {availableSkills.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
                 </select>
                 <button onClick={() => removeBlock(dayIdx, blockIdx)} className="btn-danger">Eliminar bloque</button>
               </div>

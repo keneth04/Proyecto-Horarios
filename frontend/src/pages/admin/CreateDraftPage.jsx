@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { HorariosApi, SkillsApi, UsersApi } from '../../api/endpoints';
 import { useToast } from '../../components/Toast';
 import { getErrorMessage, isValidHour } from '../../utils/helpers';
+import { getAllowedSkillsForUser } from '../../utils/skills';
 
 const emptyBlock = { start: '08:00', end: '09:00', skillId: '' };
 
@@ -18,24 +19,9 @@ export default function CreateDraftPage() {
     [users, userId]
   );
 
-  const availableSkills = useMemo(() => {
-    if (!selectedUser) return [];
-
-
-    const allowedSkillIds = new Set(
-      (Array.isArray(selectedUser.allowedSkills) ? selectedUser.allowedSkills : [])
-        .map((skillId) => String(skillId))
-    );
-
-
-    return skills.filter((skill) => {
-      if (skill.type === 'absence' || skill.type === 'break' || skill.type === 'rest' ) {
-        return true;
-      }
-
-      return allowedSkillIds.has(String(skill._id));
-    });
-  }, [skills, selectedUser]);
+  const availableSkills = useMemo(() => (
+    getAllowedSkillsForUser({ skills, user: selectedUser })
+  ), [skills, selectedUser]);
 
 
   useEffect(() => {

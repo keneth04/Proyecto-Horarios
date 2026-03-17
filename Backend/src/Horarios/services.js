@@ -252,7 +252,7 @@ const getSkillFromMapOrThrow = (skillsMap, skillId, messageIfMissing = 'Skill no
  * - Mantiene tus mismas reglas y mensajes clave
  * ========================= */
 
-const validateDayBlocksBusinessRules = ({ blocks, skillsMap, allowedSkillsSet = null }) => {
+const validateDayBlocksBusinessRules = ({ blocks, skillsMap, allowedSkillsSet = null, userName = 'Usuario desconocido' }) => {
   let hasRest = false;
   let hasAbsence = false;
   let consecutiveWorkMinutes = 0;
@@ -305,7 +305,7 @@ const validateDayBlocksBusinessRules = ({ blocks, skillsMap, allowedSkillsSet = 
     // 🔥 Operativas
     if (skill.type === 'operative') {
       if (allowedSkillsSet && !allowedSkillsSet.has(skill._id.toString())) {
-        throw new createError.BadRequest('Skill no permitida para el agente');
+        throw new createError.BadRequest(`La skill "${skill.name}" no está asignada al agente "${userName}". Solo puedes usar skills predeterminadas o skills operativas asignadas al agente.`);
       }
 
       consecutiveWorkMinutes += duration;
@@ -765,7 +765,8 @@ const create = async (horario) => {
   validateDayBlocksBusinessRules({
     blocks: validatedBlocks,
     skillsMap,
-    allowedSkillsSet: allowedSet
+    allowedSkillsSet: allowedSet,
+    userName: user.name || 'Usuario desconocido'
   });
 
   // Convertir skillId a ObjectId (igual que antes)
@@ -826,7 +827,8 @@ const update = async (id, body) => {
     validateDayBlocksBusinessRules({
       blocks: validatedBlocks,
       skillsMap,
-      allowedSkillsSet: allowedSet
+      allowedSkillsSet: allowedSet,
+      userName: user.name || 'Usuario desconocido'
     });
 
     // 🔥 VALIDACIÓN SEMANAL SI ESTÁ PUBLICADO
@@ -1147,6 +1149,10 @@ const editPublishedWeek = async ({ userId, date, schedules, editedBy }) => {
     throw new createError.BadRequest('La semana publicada está incompleta o no existe');
   }
 
+  const userData = await usersCollection.findOne({ _id: new ObjectId(userId) });
+  const userName = userData?.name || 'Usuario desconocido';
+  const allowedSet = new Set((Array.isArray(userData?.allowedSkills) ? userData.allowedSkills : []).map((skillId) => skillId.toString()));
+
   // Map id -> fecha original
   const existingMap = {};
   existingPublished.forEach((doc) => {
@@ -1203,7 +1209,8 @@ const editPublishedWeek = async ({ userId, date, schedules, editedBy }) => {
       validateDayBlocksBusinessRules({
         blocks: validatedBlocks,
         skillsMap,
-        allowedSkillsSet: null
+        allowedSkillsSet: allowedSet,
+        userName
       });
     } catch (error) {
       throw new createError.BadRequest(`Error en día ${dayKey}: ${error.message}`);
@@ -1234,9 +1241,6 @@ const editPublishedWeek = async ({ userId, date, schedules, editedBy }) => {
     }
   }
   
-  const userData = await usersCollection.findOne({ _id: new ObjectId(userId) });
-  const userName = userData?.name || 'Usuario desconocido';
-
   if (!restDayDate) {
     throw new createError.BadRequest(
       `El usuario ${userName} no tiene su día de descanso semanal obligatorio`
