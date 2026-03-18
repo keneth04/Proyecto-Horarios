@@ -4,6 +4,7 @@ const { HorariosController } = require('./controller');
 const { AuthMiddleware } = require('../middlewares/authMiddleware');
 const { RoleMiddleware } = require('../middlewares/roleMiddleware');
 const { ActiveUserMiddleware } = require('../middlewares/activeMiddleware');
+const { HorariosRateLimiters } = require('../middlewares/rateLimitMiddleware');
 
 const router = express.Router();
 
@@ -46,6 +47,7 @@ module.exports.HorariosAPI = (app) => {
     '/dotacion/dia',
     AuthMiddleware,
     RoleMiddleware(['admin']),
+    HorariosRateLimiters.intensiveReports,
     HorariosController.getStaffingTableByDate
   );
 
@@ -62,6 +64,7 @@ module.exports.HorariosAPI = (app) => {
     '/reporte/horas-operativas-diarias/excel',
     AuthMiddleware,
     RoleMiddleware(['admin']),
+    HorariosRateLimiters.intensiveReports,
     HorariosController.downloadDailyOperativeHoursExcel
   );
 

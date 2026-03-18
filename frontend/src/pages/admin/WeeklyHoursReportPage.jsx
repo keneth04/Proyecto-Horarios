@@ -167,7 +167,7 @@ export default function WeeklyHoursReportPage() {
                   {columns.map((column) => (
                     <td key={`${agent.userId}-${column}`} className="px-4 py-3">{formatHours(agent.totalsBySkillHours?.[column] || 0)}</td>
                   ))}
-                 <td className="px-4 py-3 font-semibold">{formatHours(agent.totalOperativeHours)}</td>
+                  <td className="px-4 py-3 font-semibold">{formatHours(agent.totalOperativeHours)}</td>
                 </tr>
               ))}
             </tbody>

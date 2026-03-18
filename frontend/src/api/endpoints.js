@@ -47,7 +47,7 @@ export const HorariosApi = {
     return api.get(`/horarios/dotacion/dia?${params.toString()}`);
   },
 
-   weeklyHoursReport: ({ date, statuses, mode, campaign }) => {
+  weeklyHoursReport: ({ date, statuses, mode, campaign }) => {
     const params = new URLSearchParams();
 
     if (date) {
