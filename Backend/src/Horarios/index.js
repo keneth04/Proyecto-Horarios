@@ -5,6 +5,8 @@ const { AuthMiddleware } = require('../middlewares/authMiddleware');
 const { RoleMiddleware } = require('../middlewares/roleMiddleware');
 const { ActiveUserMiddleware } = require('../middlewares/activeMiddleware');
 const { HorariosRateLimiters } = require('../middlewares/rateLimitMiddleware');
+const { validateRequest } = require('../middlewares/validateMiddleware');
+const { horariosSchemas } = require('../validation/schemas');
 
 const router = express.Router();
 
@@ -15,6 +17,7 @@ module.exports.HorariosAPI = (app) => {
     '/dia',
     AuthMiddleware,
     RoleMiddleware(['admin']),
+    validateRequest({ query: horariosSchemas.byDateQuery }),
     HorariosController.getHorariosByDate
   );
 
@@ -23,6 +26,7 @@ module.exports.HorariosAPI = (app) => {
     '/semana-publicada/usuario/:userId',
     AuthMiddleware,
     RoleMiddleware(['admin']),
+    validateRequest({ params: horariosSchemas.userIdParam, query: horariosSchemas.publishedWeekAllQuery }),
     HorariosController.getPublishedWeekByUser
   );
 
@@ -31,6 +35,7 @@ module.exports.HorariosAPI = (app) => {
     '/semana/usuario/:userId',
     AuthMiddleware,
     RoleMiddleware(['admin']),
+    validateRequest({ params: horariosSchemas.userIdParam, query: horariosSchemas.weekByUserQuery }),
     HorariosController.getWeekByUser
   );
 
@@ -39,6 +44,7 @@ module.exports.HorariosAPI = (app) => {
     '/semana-publicada',
     AuthMiddleware,
     RoleMiddleware(['admin']),
+    validateRequest({ query: horariosSchemas.publishedWeekAllQuery }),
     HorariosController.getPublishedWeekAllAgents
   );
 
@@ -48,6 +54,7 @@ module.exports.HorariosAPI = (app) => {
     AuthMiddleware,
     RoleMiddleware(['admin']),
     HorariosRateLimiters.intensiveReports,
+    validateRequest({ query: horariosSchemas.reportQuery }),
     HorariosController.getStaffingTableByDate
   );
 
@@ -56,6 +63,7 @@ module.exports.HorariosAPI = (app) => {
     '/reporte/horas-semana',
     AuthMiddleware,
     RoleMiddleware(['admin']),
+    validateRequest({ query: horariosSchemas.reportQuery }),
     HorariosController.getWeeklyHoursReport
   );
 
@@ -65,6 +73,7 @@ module.exports.HorariosAPI = (app) => {
     AuthMiddleware,
     RoleMiddleware(['admin']),
     HorariosRateLimiters.intensiveReports,
+    validateRequest({ query: horariosSchemas.reportQuery }),
     HorariosController.downloadDailyOperativeHoursExcel
   );
 
@@ -82,6 +91,7 @@ module.exports.HorariosAPI = (app) => {
     '/publicar',
     AuthMiddleware,
     RoleMiddleware(['admin']),
+    validateRequest({ body: horariosSchemas.publishByDate }),
     HorariosController.publishByDate
   );
 
@@ -90,6 +100,7 @@ module.exports.HorariosAPI = (app) => {
     '/editar-semana-publicada',
     AuthMiddleware,
     RoleMiddleware(['admin']),
+    validateRequest({ body: horariosSchemas.editPublishedWeek }),
     HorariosController.editPublishedWeek
   );
   
@@ -98,6 +109,7 @@ module.exports.HorariosAPI = (app) => {
     '/editar-semana',
     AuthMiddleware,
     RoleMiddleware(['admin']),
+    validateRequest({ body: horariosSchemas.editWeek }),
     HorariosController.editWeek
   );
 
@@ -106,6 +118,7 @@ module.exports.HorariosAPI = (app) => {
     '/usuario/:userId',
     AuthMiddleware,
     RoleMiddleware(['admin']),
+    validateRequest({ params: horariosSchemas.userIdParam }),
     HorariosController.getHorariosByUser
   );
 
@@ -122,6 +135,7 @@ module.exports.HorariosAPI = (app) => {
     '/:id',
     AuthMiddleware,
     RoleMiddleware(['admin']),
+    validateRequest({ params: horariosSchemas.idParam }),
     HorariosController.getHorario
   );
 
@@ -130,6 +144,7 @@ module.exports.HorariosAPI = (app) => {
     '/',
     AuthMiddleware,
     RoleMiddleware(['admin']),
+    validateRequest({ body: horariosSchemas.create }),
     HorariosController.createHorario
   );
 
@@ -138,6 +153,7 @@ module.exports.HorariosAPI = (app) => {
     '/:id',
     AuthMiddleware,
     RoleMiddleware(['admin']),
+    validateRequest({ params: horariosSchemas.idParam, body: horariosSchemas.update }),
     HorariosController.updateHorario
   );
 

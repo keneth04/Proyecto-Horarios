@@ -10,12 +10,14 @@ module.exports.ErrorMiddleware = (err, req, res, next) => {
   const statusCode = err.statusCode || 500;
   const message = err.message || 'Error interno del servidor';
   const requestId = req?.requestId;
+  const details = Array.isArray(err.details) ? err.details : undefined;
 
   Logger.error('http_error', {
     requestId,
     method: req?.method,
     path: req?.originalUrl,
     statusCode,
+    details,
     error: Logger.toErrorObject(err)
   });
 
@@ -23,6 +25,7 @@ module.exports.ErrorMiddleware = (err, req, res, next) => {
     error: true,
     status: statusCode,
     message,
-    requestId
+    requestId,
+    details
   });
 };

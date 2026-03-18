@@ -6,14 +6,17 @@
 const express = require('express');
 const { AuthController } = require('./controller');
 const { AuthRateLimiters } = require('../middlewares/rateLimitMiddleware');
+const { validateRequest } = require('../middlewares/validateMiddleware');
+const { authSchemas } = require('../validation/schemas');
+
 
 const router = express.Router();
 
 module.exports.AuthAPI = (app) => {
   router
-    .post('/login', AuthRateLimiters.login, AuthController.login)
-    .post('/forgot-password', AuthRateLimiters.forgotPassword, AuthController.forgotPassword)
-    .post('/reset-password', AuthController.resetPassword);
+    .post('/login', AuthRateLimiters.login, validateRequest({ body: authSchemas.login }), AuthController.login)
+    .post('/forgot-password', AuthRateLimiters.forgotPassword, validateRequest({ body: authSchemas.forgotPassword }), AuthController.forgotPassword)
+    .post('/reset-password', validateRequest({ body: authSchemas.resetPassword }), AuthController.resetPassword);
 
   app.use('/api/auth', router);
 };

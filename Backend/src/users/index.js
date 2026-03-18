@@ -4,6 +4,8 @@ const { UsersService } = require('./services');
 
 const { AuthMiddleware } = require('../middlewares/authMiddleware');
 const { RoleMiddleware } = require('../middlewares/roleMiddleware'); // (mantengo el nombre actual para no romper nada)
+const { validateRequest } = require('../middlewares/validateMiddleware');
+const { usersSchemas } = require('../validation/schemas');
 
 const router = express.Router();
 
@@ -36,18 +38,18 @@ module.exports.UsersAPI = (app) => {
    * - Primer usuario: permitido sin token (service lo fuerza admin)
    * - Después: solo admin
    */
-  router.post('/', RequireAdminIfUsersExist, UsersController.createUser);
+  router.post('/', RequireAdminIfUsersExist, validateRequest({ body: usersSchemas.create }), UsersController.createUser);
 
   /**
    * 🔐 Rutas protegidas (solo admin)
    */
-  router.get('/', AuthMiddleware, RoleMiddleware(['admin']), UsersController.getUsers);
+  router.get('/', AuthMiddleware, RoleMiddleware(['admin']), validateRequest({ query: usersSchemas.query }), UsersController.getUsers);
 
-  router.get('/:id', AuthMiddleware, RoleMiddleware(['admin']), UsersController.getUser);
+  router.get('/:id', AuthMiddleware, RoleMiddleware(['admin']), validateRequest({ params: usersSchemas.idParam }), UsersController.getUser);
 
-  router.patch('/:id', AuthMiddleware, RoleMiddleware(['admin']), UsersController.updateUser);
+  router.patch('/:id', AuthMiddleware, RoleMiddleware(['admin']), validateRequest({ params: usersSchemas.idParam, body: usersSchemas.update }), UsersController.updateUser);
 
-  router.patch('/:id/status', AuthMiddleware, RoleMiddleware(['admin']), UsersController.changeStatus);
+  router.patch('/:id/status', AuthMiddleware, RoleMiddleware(['admin']), validateRequest({ params: usersSchemas.idParam, body: usersSchemas.changeStatus }), UsersController.changeStatus);
 
   app.use('/api/users', router);
 };
