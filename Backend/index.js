@@ -7,10 +7,18 @@ const { UsersAPI } = require('./src/users');
 const { AuthAPI } = require('./src/auth');
 const { ErrorMiddleware } = require('./src/middlewares/errorMiddleware');
 const { SkillsAPI } = require('./src/skills');
+const { SecurityMiddlewares } = require('./src/middlewares/securityMiddleware');
 
 const app = express();
 
-app.use(express.json());
+const securityMiddlewares = SecurityMiddlewares({
+  allowedOrigins: Config.http.corsAllowedOrigins,
+  jsonLimit: Config.http.jsonLimit
+});
+
+app.use(securityMiddlewares.helmet);
+app.use(securityMiddlewares.cors);
+app.use(securityMiddlewares.jsonParser);
 
 HorariosAPI(app);
 UsersAPI(app);
