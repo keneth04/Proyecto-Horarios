@@ -4,21 +4,24 @@ import api from '../api/client';
 
 const AuthContext = createContext(null);
 
+const readPersistedUser = () => {
+  const raw = localStorage.getItem('user');
+  if (!raw) return null;
+
+  try {
+    return JSON.parse(raw);
+  } catch (_) {
+    localStorage.removeItem('user');
+    return null;
+  }
+};
+
 export function AuthProvider({ children }) {
   const navigate = useNavigate();
   const [token, setToken] = useState(localStorage.getItem('token'));
-  const [user, setUser] = useState(() => {
-    const raw = localStorage.getItem('user');
-    return raw ? JSON.parse(raw) : null;
-  });
+  const [user, setUser] = useState(readPersistedUser);
 
   useEffect(() => {
-    const requestInterceptor = api.interceptors.request.use((config) => {
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
-      return config;
-    });
 
     const responseInterceptor = api.interceptors.response.use(
       (response) => response,
@@ -31,7 +34,6 @@ export function AuthProvider({ children }) {
     );
 
     return () => {
-      api.interceptors.request.eject(requestInterceptor);
       api.interceptors.response.eject(responseInterceptor);
     };
   }, [token]);
@@ -41,6 +43,7 @@ export function AuthProvider({ children }) {
     setUser(nextUser);
     localStorage.setItem('token', nextToken);
     localStorage.setItem('user', JSON.stringify(nextUser));
+    api.defaults.headers.common.Authorization = `Bearer ${nextToken}`;
   };
 
   const logout = (silent = false) => {
@@ -48,6 +51,7 @@ export function AuthProvider({ children }) {
     setUser(null);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    delete api.defaults.headers.common.Authorization;
     navigate('/login', { replace: true });
     if (!silent) {
       // noop visual handled via toast on callers

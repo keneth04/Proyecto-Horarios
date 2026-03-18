@@ -19,13 +19,50 @@ const getWeekTag = ({ from, to, today }) => {
 export default function MySchedulePage() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const { push } = useToast();
+
+  const loadSchedule = async ({ silent = false } = {}) => {
+    if (!silent) {
+      setRefreshing(true);
+    }
+
+    try {
+      const res = await HorariosApi.mySchedule();
+      setItems(res.data.body);
+    } catch (error) {
+      push(getErrorMessage(error), 'error');
+    } finally {
+      setLoading(false);
+      if (!silent) {
+        setRefreshing(false);
+      }
+    }
+  };
+
 
   useEffect(() => {
     HorariosApi.mySchedule()
-      .then((res) => setItems(res.data.body))
-      .catch((error) => push(getErrorMessage(error), 'error'))
-      .finally(() => setLoading(false));
+      loadSchedule();
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadSchedule({ silent: true });
+      }
+    };
+
+    const refreshIntervalId = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        loadSchedule({ silent: true });
+      }
+    }, 60000);
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.clearInterval(refreshIntervalId);
+    };
   }, []);
 
   const groupedWeeks = useMemo(() => {
@@ -85,6 +122,12 @@ export default function MySchedulePage() {
 
   return (
     <div className="space-y-4">
+      <div className="card flex items-center justify-between gap-3 p-3">
+        <p className="text-sm text-[#5e536d]">La vista se actualiza automáticamente al volver a esta pestaña.</p>
+        <button onClick={() => loadSchedule()} className="btn-secondary" disabled={refreshing}>
+          {refreshing ? 'Actualizando...' : 'Actualizar'}
+        </button>
+      </div>
       {groupedWeeks.map((week) => (
         <div key={week.id} className="space-y-3">
           <div className="card p-3">
