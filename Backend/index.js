@@ -1,7 +1,7 @@
 const express = require('express');
 const debug = require('debug')('app:main');
 
-const { Config } = require('./src/config');
+const { Config, validateCriticalConfig } = require('./src/config');
 const { HorariosAPI } = require('./src/Horarios');
 const { UsersAPI } = require('./src/users');
 const { AuthAPI } = require('./src/auth');
@@ -10,6 +10,8 @@ const { SkillsAPI } = require('./src/skills');
 const { SecurityMiddlewares } = require('./src/middlewares/securityMiddleware');
 
 const app = express();
+
+validateCriticalConfig();
 
 const securityMiddlewares = SecurityMiddlewares({
   allowedOrigins: Config.http.corsAllowedOrigins,
