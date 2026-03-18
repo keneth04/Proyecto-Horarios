@@ -57,6 +57,14 @@ module.exports.HorariosAPI = (app) => {
     HorariosController.getWeeklyHoursReport
   );
 
+  // 📌 ADMIN - descargar Excel de horas operativas planificadas por agente/día
+  router.get(
+    '/reporte/horas-operativas-diarias/excel',
+    AuthMiddleware,
+    RoleMiddleware(['admin']),
+    HorariosController.downloadDailyOperativeHoursExcel
+  );
+
   // 📌 AGENTE - ver solo sus horarios PUBLICADOS
   router.get(
     '/mi-horario',

@@ -764,6 +764,105 @@ const getWeeklyHoursReport = async ({ date, statuses, mode, campaign }) => {
   };
 };
 
+const getDailyOperativeHoursReport = async ({ date, statuses, mode, campaign }) => {
+  const safeStatuses = resolveStatusesFromMode({ statuses, mode });
+  const campaignFilter = normalizeCampaignFilter(campaign);
+
+  const collection = await Database(COLLECTION);
+  const usersCollection = await Database(USERS_COLLECTION);
+  const skillsCollection = await Database(SKILLS_COLLECTION);
+
+  const normalizedDate = normalizeDate(date || new Date());
+  const { weekStart, weekEnd } = getWeekRange(normalizedDate);
+
+  const schedules = await collection
+    .find({
+      status: { $in: safeStatuses },
+      date: { $gte: weekStart, $lte: weekEnd }
+    })
+    .toArray();
+
+  const userIds = [...new Set(schedules.map((schedule) => schedule.userId.toString()))];
+  const users = userIds.length
+    ? await usersCollection
+      .find(
+        { _id: { $in: userIds.map((id) => new ObjectId(id)) } },
+        { projection: { _id: 1, name: 1, campaign: 1 } }
+      )
+      .toArray()
+    : [];
+
+  const usersMap = users.reduce((acc, user) => {
+    acc[user._id.toString()] = user;
+    return acc;
+  }, {});
+
+  const filteredSchedules = campaignFilter
+    ? schedules.filter((schedule) => {
+      const user = usersMap[schedule.userId.toString()];
+      const userCampaign = String(user?.campaign || '').trim().toLowerCase();
+      return userCampaign === campaignFilter;
+    })
+    : schedules;
+
+  const skillIds = filteredSchedules.flatMap((schedule) =>
+    (schedule.blocks || []).map((block) => block.skillId.toString())
+  );
+  const skillsMap = await buildSkillsMapFromIds(skillsCollection, skillIds);
+
+  const rowsMap = {};
+
+  for (const schedule of filteredSchedules) {
+    const userId = schedule.userId.toString();
+    const user = usersMap[userId];
+    const scheduleDate = normalizeDate(schedule.date);
+    const rowKey = `${userId}::${scheduleDate}`;
+
+    if (!rowsMap[rowKey]) {
+      rowsMap[rowKey] = {
+        userId,
+        agentName: user?.name || 'Sin nombre',
+        date: scheduleDate,
+        operativeMinutes: 0
+      };
+    }
+
+    for (const block of schedule.blocks || []) {
+      const skillId = block.skillId.toString();
+      const skill = skillsMap[skillId];
+
+      if (!skill || skill.type !== 'operative') {
+        continue;
+      }
+
+      rowsMap[rowKey].operativeMinutes += timeToMinutes(block.end) - timeToMinutes(block.start);
+    }
+  }
+
+  const rows = Object.values(rowsMap)
+    .filter((row) => row.operativeMinutes > 0)
+    .sort((a, b) => {
+      if (a.agentName !== b.agentName) return a.agentName.localeCompare(b.agentName);
+      return a.date.localeCompare(b.date);
+    })
+    .map((row) => ({
+      agentName: row.agentName,
+      date: row.date,
+      operativeHours: Number((row.operativeMinutes / 60).toFixed(2))
+    }));
+
+  return {
+    week: {
+      from: weekStart,
+      to: weekEnd
+    },
+    mode: mode ? String(mode).trim().toLowerCase() : null,
+    campaign: campaign || '',
+    statuses: safeStatuses,
+    rows
+  };
+};
+
 /* =========================
  * Commands
  * ========================= */
@@ -1498,6 +1597,7 @@ module.exports.HorariosService = {
   getPublishedWeekAllAgents,
   getStaffingTableByDate,
   getWeeklyHoursReport,
+  getDailyOperativeHoursReport,
   create,
   update,
   publishByDate,

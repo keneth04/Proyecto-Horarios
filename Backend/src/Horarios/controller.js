@@ -1,5 +1,6 @@
 const { HorariosService } = require('./services');
 const { Response } = require('../common/response');
+const excel = require('excel4node');
 
 module.exports.HorariosController = {
   getHorariosByDate: async (req, res, next) => {
@@ -134,6 +135,85 @@ module.exports.HorariosController = {
     }
   },
 
+  downloadDailyOperativeHoursExcel: async (req, res, next) => {
+    try {
+      const { date, statuses, mode, campaign } = req.query;
+      const parsedStatuses = statuses
+        ? String(statuses).split(',').map((status) => status.trim()).filter(Boolean)
+        : undefined;
+
+      const report = await HorariosService.getDailyOperativeHoursReport({
+        date,
+        statuses: parsedStatuses,
+        mode,
+        campaign
+      });
+
+      const workbook = new excel.Workbook();
+      const worksheet = workbook.addWorksheet('Horas operativas');
+
+      const headerStyle = workbook.createStyle({
+        font: {
+          bold: true,
+          color: '#FFFFFF'
+        },
+        fill: {
+          type: 'pattern',
+          patternType: 'solid',
+          fgColor: '#4F46E5'
+        },
+        alignment: {
+          horizontal: 'center',
+          vertical: 'center'
+        }
+      });
+
+      const dataStyle = workbook.createStyle({
+        alignment: {
+          horizontal: 'left',
+          vertical: 'center'
+        }
+      });
+
+      const hoursStyle = workbook.createStyle({
+        numberFormat: '#,##0.00',
+        alignment: {
+          horizontal: 'right',
+          vertical: 'center'
+        }
+      });
+
+      const columns = [
+        { header: 'Agente', width: 34 },
+        { header: 'Fecha', width: 18 },
+        { header: 'Horas operativas planificadas', width: 34 }
+      ];
+
+      columns.forEach((column, index) => {
+        worksheet.cell(1, index + 1).string(column.header).style(headerStyle);
+        worksheet.column(index + 1).setWidth(column.width);
+      });
+
+      report.rows.forEach((row, index) => {
+        const line = index + 2;
+        worksheet.cell(line, 1).string(row.agentName).style(dataStyle);
+        worksheet.cell(line, 2).string(row.date.replaceAll('-', '/')).style(dataStyle);
+        worksheet.cell(line, 3).number(row.operativeHours).style(hoursStyle);
+      });
+
+      const generatedAt = new Date().toISOString().replace(/[:.]/g, '-');
+      const fileName = `reporte-horas-operativas-${generatedAt}.xlsx`;
+      const buffer = await workbook.writeToBuffer();
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+      res.setHeader('Cache-Control', 'no-store');
+
+      res.status(200).send(buffer);
+    } catch (error) {
+      next(error);
+    }
+  },
 
   createHorario: async (req, res, next) => {
     try {

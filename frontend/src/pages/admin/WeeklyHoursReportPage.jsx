@@ -25,6 +25,22 @@ const formatHours = (value) => {
   return value.toFixed(1).replace('.', ',');
 };
 
+const readBlobErrorMessage = async (error) => {
+  const payload = error?.response?.data;
+
+  if (payload instanceof Blob) {
+    try {
+      const text = await payload.text();
+      const parsed = JSON.parse(text);
+      if (parsed?.message) return parsed.message;
+    } catch (_parseError) {
+      return null;
+    }
+  }
+
+  return error?.response?.data?.message || null;
+};
+
 export default function WeeklyHoursReportPage() {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [mode, setMode] = useState('published');
@@ -32,6 +48,7 @@ export default function WeeklyHoursReportPage() {
   const [campaignOptions, setCampaignOptions] = useState([]);
   const [report, setReport] = useState({ agents: [], skillColumns: [], week: null });
   const [loading, setLoading] = useState(false);
+  const [downloadingExcel, setDownloadingExcel] = useState(false);
   const { push } = useToast();
 
   const loadCampaigns = async () => {
@@ -64,6 +81,38 @@ export default function WeeklyHoursReportPage() {
 
   const columns = useMemo(() => report.skillColumns || [], [report.skillColumns]);
 
+  const downloadOperationalExcel = async () => {
+    setDownloadingExcel(true);
+
+    try {
+      const response = await HorariosApi.downloadDailyOperativeHoursExcel({ date, mode, campaign });
+      const contentDisposition = response?.headers?.['content-disposition'] || '';
+      const match = /filename="([^"]+)"/i.exec(contentDisposition);
+      const fileName = match?.[1] || 'reporte-horas-operativas.xlsx';
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.setAttribute('download', fileName);
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      const backendMessage = await readBlobErrorMessage(error);
+      const status = error?.response?.status;
+      const specificMessage = backendMessage
+        || (status
+          ? `No se pudo descargar el Excel: el servidor respondió con estado ${status}. Ajusta los filtros y vuelve a intentar.`
+          : 'No se pudo descargar el Excel: no hubo respuesta del servidor. Revisa tu conexión y vuelve a intentar.');
+
+      push(specificMessage, 'error');
+    } finally {
+      setDownloadingExcel(false);
+    }
+  };
+
+
   return (
     <section className="space-y-6">
       <h2 className="panel-title">Reporte semanal de horas por agente y skill</h2>
@@ -83,9 +132,12 @@ export default function WeeklyHoursReportPage() {
         </datalist>
 
         <button onClick={loadReport} className="btn-primary">Consultar</button>
+        <button onClick={downloadOperationalExcel} className="btn-secondary" disabled={downloadingExcel}>
+          {downloadingExcel ? 'Descargando Excel...' : 'Descargar Excel (operativas/día)'}
+        </button>
       </div>
 
-       <p className="text-sm text-[#4a4a4a]">Semana: {formatWeek(report.week)}</p>
+      <p className="text-sm text-[#4a4a4a]">Semana: {formatWeek(report.week)}</p>
 
       {loading ? <Spinner label="Cargando reporte..." /> : (
         <div className="overflow-x-auto rounded-xl border border-[#eef0f4] bg-white shadow-sm">
@@ -95,7 +147,7 @@ export default function WeeklyHoursReportPage() {
                 <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#4a4a4a]">Agente</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#4a4a4a]">Campaña</th>
                 {columns.map((column) => (
-                   <th key={column} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#4a4a4a]">{column}</th>
+                  <th key={column} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#4a4a4a]">{column}</th>
                 ))}
                 <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#4a4a4a]">Total (operativas)</th>
               </tr>
