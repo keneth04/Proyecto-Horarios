@@ -4,6 +4,12 @@ const { Response } = require('../common/response');
 module.exports.SkillsController = {
   getSkills: async (req, res, next) => {
     try {
+      const hasPaginationOrFilters = ['page', 'limit', 'name', 'status', 'type'].some((key) => req.query[key] !== undefined);
+
+      if (hasPaginationOrFilters) {
+        const result = await SkillsService.getPaginated(req.query);
+        return Response.success(res, 200, 'Lista de skills', result);
+      }
       const skills = await SkillsService.getAll();
       Response.success(res, 200, 'Lista de skills', skills);
     } catch (error) {

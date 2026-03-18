@@ -6,6 +6,10 @@ const COLLECTION = 'skills';
 
 const HEX_COLOR_REGEX = /^#([0-9A-F]{3}){1,2}$/i;
 
+const DEFAULT_PAGE = 1;
+const DEFAULT_LIMIT = 20;
+const MAX_LIMIT = 100;
+
 const assertValidObjectId = (id) => {
   if (!ObjectId.isValid(id)) {
     throw new createError.BadRequest('ID inválido');
@@ -18,12 +22,52 @@ const assertValidHexColor = (color) => {
   }
 };
 
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const normalizePagination = ({ page, limit }) => {
+  const parsedPage = Number.parseInt(page, 10);
+  const parsedLimit = Number.parseInt(limit, 10);
+
+  const safePage = Number.isNaN(parsedPage) || parsedPage < 1 ? DEFAULT_PAGE : parsedPage;
+  const safeLimit = Number.isNaN(parsedLimit) || parsedLimit < 1
+    ? DEFAULT_LIMIT
+    : Math.min(parsedLimit, MAX_LIMIT);
+
+  return { page: safePage, limit: safeLimit, skip: (safePage - 1) * safeLimit };
+};
+
 const normalizeName = (name) => {
   const normalized = (name || '').trim();
   if (!normalized) {
     throw new createError.BadRequest('El nombre no puede estar vacío');
   }
   return normalized;
+};
+
+const buildSkillsFilter = ({ name, status, type }) => {
+  const filter = {};
+
+  if (typeof name === 'string' && name.trim() !== '') {
+    filter.name = { $regex: escapeRegex(name.trim()), $options: 'i' };
+  }
+
+  if (typeof status === 'string' && status !== 'all' && status.trim() !== '') {
+    if (!['active', 'inactive'].includes(status)) {
+      throw new createError.BadRequest('Filtro de estado inválido');
+    }
+
+    filter.status = status;
+  }
+
+  if (typeof type === 'string' && type !== 'all' && type.trim() !== '') {
+    if (!['break', 'rest', 'absence', 'operative'].includes(type)) {
+      throw new createError.BadRequest('Filtro de tipo inválido');
+    }
+
+    filter.type = type;
+  }
+
+  return filter;
 };
 
 const inferTypeFromName = (name) => {
@@ -71,6 +115,32 @@ const getAll = async () => {
   const collection = await Database(COLLECTION);
   return collection.find({}).sort({ createdAt: -1 }).toArray();
 };
+
+const getPaginated = async ({ page, limit, name, status, type }) => {
+  const collection = await Database(COLLECTION);
+
+  const pagination = normalizePagination({ page, limit });
+  const filter = buildSkillsFilter({ name, status, type });
+
+  const [items, total] = await Promise.all([
+    collection
+      .find(filter)
+      .sort({ createdAt: -1 })
+      .skip(pagination.skip)
+      .limit(pagination.limit)
+      .toArray(),
+    collection.countDocuments(filter)
+  ]);
+
+  return {
+    items,
+    page: pagination.page,
+    limit: pagination.limit,
+    total,
+    totalPages: total === 0 ? 0 : Math.ceil(total / pagination.limit)
+  };
+};
+
 
 /* 🔹 Obtener por ID */
 const getById = async (id) => {
@@ -211,6 +281,7 @@ const changeStatus = async (id, status) => {
 
 module.exports.SkillsService = {
   getAll,
+  getPaginated,
   getById,
   create,
   updateSkill,

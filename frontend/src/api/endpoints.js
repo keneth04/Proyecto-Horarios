@@ -7,14 +7,14 @@ export const AuthApi = {
 };
 
 export const SkillsApi = {
-  list: () => api.get('/skills'),
+  list: (params) => api.get('/skills', { params }),
   create: (payload) => api.post('/skills', payload),
   update: (id, payload) => api.patch(`/skills/${id}`, payload),
   setStatus: (id, status) => api.patch(`/skills/${id}/status`, { status })
 };
 
 export const UsersApi = {
-  list: () => api.get('/users'),
+  list: (params) => api.get('/users', { params }),
   create: (payload) => api.post('/users', payload),
   update: (id, payload) => api.patch(`/users/${id}`, payload),
   setStatus: (id, status) => api.patch(`/users/${id}/status`, { status })

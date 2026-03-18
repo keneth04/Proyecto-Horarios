@@ -16,28 +16,76 @@ const EMPTY_CREATE_FORM = {
   allowedSkills: []
 };
 
+const DEFAULT_LIMIT = 10;
+
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
   const [skills, setSkills] = useState([]);
   const [form, setForm] = useState(EMPTY_CREATE_FORM);
   const [nameFilter, setNameFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [meta, setMeta] = useState({ page: 1, limit: DEFAULT_LIMIT, total: 0, totalPages: 0 });
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [editForm, setEditForm] = useState({ name: '', email: '', role: 'agente', campaign: '', allowedSkills: [] });
   const { push } = useToast();
 
-  const load = async () => {
+  const loadSkills = async () => {
+    const skillsRes = await SkillsApi.list();
+    setSkills(skillsRes.data.body.filter((s) => s.status === 'active' && s.type !== 'break'));
+  };
+
+  const loadUsers = async ({ page = currentPage } = {}) => {
+    const params = {
+      page,
+      limit: DEFAULT_LIMIT
+    };
+
+    if (nameFilter.trim()) {
+      params.name = nameFilter.trim();
+    }
+
+    if (statusFilter !== 'all') {
+      params.status = statusFilter;
+    }
+
+    const usersRes = await UsersApi.list(params);
+    const payload = usersRes.data.body;
+
+    setUsers(payload.items || []);
+    setMeta({
+      page: payload.page || page,
+      limit: payload.limit || DEFAULT_LIMIT,
+      total: payload.total || 0,
+      totalPages: payload.totalPages || 0
+    });
+    setCurrentPage(payload.page || page);
+  };
+
+  const load = async ({ page = currentPage } = {}) => {
     try {
-      const [usersRes, skillsRes] = await Promise.all([UsersApi.list(), SkillsApi.list()]);
-      setUsers(usersRes.data.body);
-      setSkills(skillsRes.data.body.filter((s) => s.status === 'active' && s.type !== 'break'));
+      await Promise.all([loadUsers({ page }), loadSkills()]);
     } catch (error) {
       push(getErrorMessage(error), 'error');
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load({ page: 1 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      loadUsers({ page: 1 }).catch((error) => {
+        push(getErrorMessage(error), 'error');
+      });
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nameFilter, statusFilter]);
 
   const create = async (e) => {
     e.preventDefault();
@@ -45,7 +93,7 @@ export default function UsersPage() {
       await UsersApi.create(form);
       push('Usuario creado');
       setForm(EMPTY_CREATE_FORM);
-      load();
+      await loadUsers({ page: 1 });
     } catch (error) {
       push(getErrorMessage(error), 'error');
     }
@@ -97,7 +145,7 @@ export default function UsersPage() {
       await UsersApi.update(editingUser._id, editForm);
       push('Usuario actualizado');
       closeEdit();
-      load();
+      await loadUsers({ page: currentPage });
     } catch (error) {
       push(getErrorMessage(error), 'error');
     }
@@ -106,24 +154,12 @@ export default function UsersPage() {
   const toggleStatus = async (user) => {
     try {
       await UsersApi.setStatus(user._id, user.status === 'active' ? 'inactive' : 'active');
-      load();
+      await loadUsers({ page: currentPage });
     } catch (error) {
       push(getErrorMessage(error), 'error');
     }
   };
 
-  const filteredUsers = useMemo(() => {
-    const normalizedNameFilter = nameFilter.trim().toLowerCase();
-
-    return users.filter((user) => {
-      const matchesName = !normalizedNameFilter
-        || String(user.name || '').toLowerCase().includes(normalizedNameFilter);
-
-      const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
-
-      return matchesName && matchesStatus;
-    });
-  }, [users, nameFilter, statusFilter]);
 
   const skillsById = useMemo(() => {
     return skills.reduce((acc, skill) => {
@@ -160,6 +196,9 @@ export default function UsersPage() {
       </div>
     );
   };
+
+  const canGoPrevious = meta.page > 1;
+  const canGoNext = meta.page < meta.totalPages;
 
   return (
     <section className="space-y-6">
@@ -237,8 +276,33 @@ export default function UsersPage() {
             )
           }
         ]}
-        rows={filteredUsers}
+        rows={users}
       />
+      
+      <div className="flex items-center justify-between rounded-xl border border-[#e6deef] bg-white px-4 py-3 text-sm text-[#4f4164]">
+        <span>
+          Página {meta.page} de {Math.max(meta.totalPages, 1)} · Total: {meta.total}
+        </span>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => loadUsers({ page: meta.page - 1 })}
+            disabled={!canGoPrevious}
+            className="btn-secondary disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Anterior
+          </button>
+          <button
+            type="button"
+            onClick={() => loadUsers({ page: meta.page + 1 })}
+            disabled={!canGoNext}
+            className="btn-secondary disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Siguiente
+          </button>
+        </div>
+      </div>
+
 
       <Modal open={isEditOpen} title="Editar usuario" onClose={closeEdit}>
         <form onSubmit={submitEdit} className="space-y-3">

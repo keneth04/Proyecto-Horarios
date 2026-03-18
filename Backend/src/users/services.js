@@ -8,6 +8,9 @@ const SKILLS_COLLECTION = 'skills';
 const SALT_ROUNDS = 10;
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const DEFAULT_PAGE = 1;
+const DEFAULT_LIMIT = 20;
+const MAX_LIMIT = 100;
 
 /** =========================
  * Helpers / Validaciones
@@ -23,6 +26,38 @@ const assertValidEmail = (email) => {
   if (!emailRegex.test(email)) {
     throw new createError.BadRequest('Email inválido');
   }
+};
+
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const normalizePagination = ({ page, limit }) => {
+  const parsedPage = Number.parseInt(page, 10);
+  const parsedLimit = Number.parseInt(limit, 10);
+
+  const safePage = Number.isNaN(parsedPage) || parsedPage < 1 ? DEFAULT_PAGE : parsedPage;
+  const safeLimit = Number.isNaN(parsedLimit) || parsedLimit < 1
+    ? DEFAULT_LIMIT
+    : Math.min(parsedLimit, MAX_LIMIT);
+
+  return { page: safePage, limit: safeLimit, skip: (safePage - 1) * safeLimit };
+};
+
+const buildUsersFilter = ({ name, status }) => {
+  const filter = {};
+
+  if (typeof name === 'string' && name.trim() !== '') {
+    filter.name = { $regex: escapeRegex(name.trim()), $options: 'i' };
+  }
+
+  if (typeof status === 'string' && status !== 'all' && status.trim() !== '') {
+    if (!['active', 'inactive'].includes(status)) {
+      throw new createError.BadRequest('Filtro de estado inválido');
+    }
+
+    filter.status = status;
+  }
+
+  return filter;
 };
 
 const hashPasswordIfPresent = async (payload) => {
@@ -47,7 +82,7 @@ const validateUpdatePayload = (body) => {
     assertValidEmail(body.email);
   }
 
-   if (body.campaign !== undefined && typeof body.campaign !== 'string') {
+  if (body.campaign !== undefined && typeof body.campaign !== 'string') {
     throw new createError.BadRequest('campaign debe ser un texto');
   }
 };
@@ -55,7 +90,6 @@ const validateUpdatePayload = (body) => {
 const normalizeCampaign = (campaign) => {
   if (typeof campaign !== 'string') return '';
   return campaign.trim();
-  
 };
 
 const normalizeUserCampaign = (user) => ({
@@ -109,6 +143,31 @@ const getAll = async () => {
   const collection = await Database(COLLECTION);
   const users = await collection.find({}, { projection: { password: 0 } }).toArray();
   return users.map(normalizeUserCampaign);
+};
+
+const getPaginated = async ({ page, limit, name, status }) => {
+  const collection = await Database(COLLECTION);
+
+  const pagination = normalizePagination({ page, limit });
+  const filter = buildUsersFilter({ name, status });
+
+  const [items, total] = await Promise.all([
+    collection
+      .find(filter, { projection: { password: 0 } })
+      .sort({ createdAt: -1 })
+      .skip(pagination.skip)
+      .limit(pagination.limit)
+      .toArray(),
+    collection.countDocuments(filter)
+  ]);
+
+  return {
+    items: items.map(normalizeUserCampaign),
+    page: pagination.page,
+    limit: pagination.limit,
+    total,
+    totalPages: total === 0 ? 0 : Math.ceil(total / pagination.limit)
+  };
 };
 
 const getById = async (id) => {
@@ -256,6 +315,7 @@ const changeStatus = async (id, status) => {
 
 module.exports.UsersService = {
   getAll,
+  getPaginated,
   getById,
   getByEmail,
   create,
