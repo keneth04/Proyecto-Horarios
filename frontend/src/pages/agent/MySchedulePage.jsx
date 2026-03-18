@@ -42,8 +42,7 @@ export default function MySchedulePage() {
 
 
   useEffect(() => {
-    HorariosApi.mySchedule()
-      loadSchedule();
+    loadSchedule();
 
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
