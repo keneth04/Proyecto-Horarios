@@ -4,6 +4,18 @@ import Spinner from '../../components/Spinner';
 import { useToast } from '../../components/Toast';
 import { getErrorMessage } from '../../utils/helpers';
 
+const getUtcDateOnly = (value) => {
+  const date = new Date(value);
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+};
+
+const getWeekTag = ({ from, to, today }) => {
+  if (from <= today && today <= to) return 'Semana en curso';
+  if (from > today) return 'Próxima semana publicada';
+  return 'Semana visible';
+};
+
+
 export default function MySchedulePage() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -19,11 +31,10 @@ export default function MySchedulePage() {
   const groupedWeeks = useMemo(() => {
     const groups = [];
     const map = new Map();
+    const today = getUtcDateOnly(new Date());
 
     items.forEach((day) => {
-      const dayIso = new Date(day.date).toISOString().slice(0, 10);
-      const weekKey = dayIso;
-      const parsed = new Date(`${weekKey}T00:00:00Z`);
+      const parsed = getUtcDateOnly(day.date);
       const weekday = parsed.getUTCDay();
       const diffToMonday = (weekday + 6) % 7;
 
@@ -37,7 +48,15 @@ export default function MySchedulePage() {
       const groupId = `${fromLabel}_${toLabel}`;
 
       if (!map.has(groupId)) {
-        const group = { id: groupId, fromLabel, toLabel, days: [] };
+        const group = {
+          id: groupId,
+          from,
+          to,
+          fromLabel,
+          toLabel,
+          tag: getWeekTag({ from, to, today }),
+          days: []
+        };
         map.set(groupId, group);
         groups.push(group);
       }
@@ -47,6 +66,7 @@ export default function MySchedulePage() {
 
     groups.forEach((group) => {
       group.days.sort((a, b) => new Date(a.date) - new Date(b.date));
+      group.hasArchivedDays = group.days.some((day) => day.status === 'archivado');
     });
 
     groups.sort((a, b) => new Date(a.fromLabel) - new Date(b.fromLabel));
@@ -58,7 +78,7 @@ export default function MySchedulePage() {
   if (!items.length) {
     return (
       <div className="card text-sm text-[#4a4a4a]">
-        No tienes horarios publicados por el momento.
+        No tienes horarios vigentes o próximos publicados por el momento.
       </div>
     );
   }
@@ -69,6 +89,10 @@ export default function MySchedulePage() {
         <div key={week.id} className="space-y-3">
           <div className="card p-3">
             <p className="text-sm font-semibold text-[#1f2937]">Semana {week.fromLabel} a {week.toLabel}</p>
+            <p className="mt-1 text-xs text-[#5e536d]">
+              {week.tag}
+              {week.hasArchivedDays ? ' · Solo consulta (archivada para edición)' : ''}
+            </p>
           </div>
           {week.days.map((day) => (
             <div key={day._id} className="card p-4">

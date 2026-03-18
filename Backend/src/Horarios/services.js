@@ -364,9 +364,11 @@ const getPublishedByUserId = async (userId) => {
   const skillsCollection = await Database(SKILLS_COLLECTION);
   
   const today = normalizeDate(new Date());
-  const { weekStart: currentWeekStart } = getWeekRange(today);
+  const { weekStart: currentWeekStart, weekEnd: currentWeekEnd } = getWeekRange(today);
+
   const nextWeekStart = new Date(currentWeekStart);
   nextWeekStart.setUTCDate(currentWeekStart.getUTCDate() + 7);
+
   const nextWeekEnd = new Date(nextWeekStart);
   nextWeekEnd.setUTCDate(nextWeekStart.getUTCDate() + 6);
   nextWeekEnd.setUTCHours(23, 59, 59, 999);
@@ -374,8 +376,16 @@ const getPublishedByUserId = async (userId) => {
   const horarios = await collection
     .find({
       userId: new ObjectId(userId),
-      status: 'publicado',
-      date: { $gte: currentWeekStart, $lte: nextWeekEnd }
+      $or: [
+        {
+          date: { $gte: currentWeekStart, $lte: currentWeekEnd },
+          status: { $in: ['publicado', 'archivado'] }
+        },
+        {
+          date: { $gte: nextWeekStart, $lte: nextWeekEnd },
+          status: 'publicado'
+        }
+      ]
     })
     .sort({ date: 1 })
     .toArray();

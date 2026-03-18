@@ -53,7 +53,7 @@ module.exports.HorariosController = {
     try {
       const userId = req.user.id.toString();
       const horarios = await HorariosService.getPublishedByUserId(userId);
-      Response.success(res, 200, 'Mis horarios publicados', horarios);
+      Response.success(res, 200, 'Mis horarios vigentes y próximos publicados', horarios);
     } catch (error) {
       next(error);
     }

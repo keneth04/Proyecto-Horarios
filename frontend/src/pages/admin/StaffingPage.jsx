@@ -65,7 +65,7 @@ export default function StaffingPage() {
           <p className="text-sm text-[#6b7280]">No hay datos de dotación para los filtros seleccionados.</p>
         )}
         {rows.map((row) => (
-           <div key={row.hour} className="rounded-xl border border-[#e4e7ec] bg-white p-4 shadow-sm [&:not(:last-child)]:mb-4">
+          <div key={row.hour} className="rounded-xl border border-[#e4e7ec] bg-white p-4 shadow-sm [&:not(:last-child)]:mb-4">
             <p className="text-base font-semibold text-[#1f2937]">Franja: {row.hour}</p>
             <div className="mt-3 grid gap-3 md:grid-cols-2">
               {row.skills.map((skillRow, idx) => (
