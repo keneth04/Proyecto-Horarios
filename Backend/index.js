@@ -1,5 +1,4 @@
 const express = require('express');
-const debug = require('debug')('app:main');
 
 const { Config, validateCriticalConfig } = require('./src/config');
 const { HorariosAPI } = require('./src/Horarios');
@@ -9,6 +8,8 @@ const { ErrorMiddleware } = require('./src/middlewares/errorMiddleware');
 const { SkillsAPI } = require('./src/skills');
 const { SecurityMiddlewares } = require('./src/middlewares/securityMiddleware');
 const { ensureMongoIndexes } = require('./src/database');
+const { RequestContextMiddleware } = require('./src/middlewares/requestContextMiddleware');
+const { Logger } = require('./src/common/logger');
 
 const app = express();
 
@@ -19,6 +20,7 @@ const securityMiddlewares = SecurityMiddlewares({
   jsonLimit: Config.http.jsonLimit
 });
 
+app.use(RequestContextMiddleware);
 app.use(securityMiddlewares.helmet);
 app.use(securityMiddlewares.cors);
 app.use(securityMiddlewares.jsonParser);
@@ -35,11 +37,16 @@ const startServer = async () => {
   await ensureMongoIndexes();
 
   app.listen(Config.port, () => {
-    debug(`Servidor corriendo en el puerto: ${Config.port}`);
+    Logger.info('server_started', {
+      port: Number(Config.port),
+      environment: process.env.NODE_ENV || 'development'
+    });
   });
 };
 
 startServer().catch((error) => {
-  debug('Error al iniciar servidor:', error);
+  Logger.error('server_startup_failed', {
+    error: Logger.toErrorObject(error)
+  });
   process.exit(1);
 });

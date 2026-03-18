@@ -1,4 +1,5 @@
 const createError = require('http-errors');
+const { Logger } = require('../common/logger');
 
 module.exports.ErrorMiddleware = (err, req, res, next) => {
 
@@ -8,10 +9,20 @@ module.exports.ErrorMiddleware = (err, req, res, next) => {
 
   const statusCode = err.statusCode || 500;
   const message = err.message || 'Error interno del servidor';
+  const requestId = req?.requestId;
+
+  Logger.error('http_error', {
+    requestId,
+    method: req?.method,
+    path: req?.originalUrl,
+    statusCode,
+    error: Logger.toErrorObject(err)
+  });
 
   res.status(statusCode).json({
     error: true,
     status: statusCode,
-    message
+    message,
+    requestId
   });
 };

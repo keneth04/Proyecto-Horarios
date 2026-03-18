@@ -1,6 +1,6 @@
 const { MongoClient } = require('mongodb');
-const debug = require('debug')('app:database');
 const { Config } = require('../config');
+const { Logger } = require('../common/logger');
 
 let connection = null;
 let client = null;
@@ -34,9 +34,9 @@ const getConnection = async () => {
     client = new MongoClient(Config.mongoUri);
     await client.connect();
     connection = client.db(Config.mongoDbname);
-    debug('Nueva conexión establecida con MongoDB');
-  } else {
-    debug('Reutilizando conexión existente');
+    Logger.info('mongo_connected', {
+      database: Config.mongoDbname
+    });
   }
 
   return connection;
@@ -46,9 +46,11 @@ module.exports.Database = async (collection) => {
   try {
     const db = await getConnection();
     return db.collection(collection);
-
   } catch (error) {
-    debug('Error conectando a Mongo:', error);
+    Logger.error('mongo_connection_failed', {
+      collection,
+      error: Logger.toErrorObject(error)
+    });
     throw error;
   }
 };
@@ -67,9 +69,13 @@ module.exports.ensureMongoIndexes = async () => {
     }
 
     indexesInitialized = true;
-    debug('Índices críticos asegurados correctamente');
+    Logger.info('mongo_indexes_ensured', {
+      totalIndexes: CRITICAL_INDEXES.length
+    });
   } catch (error) {
-    debug('Error creando índices críticos:', error);
+    Logger.error('mongo_indexes_failed', {
+      error: Logger.toErrorObject(error)
+    });
     throw error;
   }
 };
