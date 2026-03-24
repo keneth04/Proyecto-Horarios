@@ -26,6 +26,11 @@ const CRITICAL_INDEXES = [
     collection: 'skills',
     key: { type: 1, status: 1 },
     options: { name: 'idx_skills_type_status' }
+  },
+  {
+    collection: 'turnos_tipo',
+    key: { code: 1, status: 1 },
+    options: { name: 'idx_turnos_tipo_code_status' }
   }
 ];
 

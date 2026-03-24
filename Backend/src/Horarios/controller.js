@@ -3,6 +3,40 @@ const { Response } = require('../common/response');
 const excel = require('excel4node');
 
 module.exports.HorariosController = {
+
+  getShiftTemplates: async (req, res, next) => {
+    try {
+      const templates = await HorariosService.getShiftTemplates();
+      Response.success(res, 200, 'Turnos tipo', templates);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  createShiftTemplate: async (req, res, next) => {
+    try {
+      const result = await HorariosService.createShiftTemplate({
+        ...req.body,
+        createdBy: req.user.id
+      });
+      Response.success(res, 201, 'Turno tipo creado correctamente', result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  updateShiftTemplate: async (req, res, next) => {
+    try {
+      const result = await HorariosService.updateShiftTemplate(req.params.id, {
+        ...req.body,
+        updatedBy: req.user.id
+      });
+      Response.success(res, 200, 'Turno tipo actualizado correctamente', result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
   getHorariosByDate: async (req, res, next) => {
     try {
       const { date, statuses } = req.query;

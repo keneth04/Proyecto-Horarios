@@ -5,6 +5,7 @@ const { Database } = require('../database');
 const COLLECTION = 'horarios';
 const USERS_COLLECTION = 'users';
 const SKILLS_COLLECTION = 'skills';
+const SHIFT_TEMPLATES_COLLECTION = 'turnos_tipo';
 
 /* 🔒 CONSTANTES DE NEGOCIO */
 const DAY_START = 8 * 60;     // 08:00
@@ -17,6 +18,7 @@ const STRICT_DATE_ERROR_MESSAGE = 'Fecha inválida, formato esperado YYYY-MM-DD'
 const ALLOWED_SCHEDULE_STATUSES = ['borrador', 'publicado', 'archivado'];
 const ALLOWED_EDITABLE_STATUSES = ['borrador', 'publicado'];
 const ALLOWED_EDIT_MODES = ['day', 'week'];
+const ALLOWED_SHIFT_TEMPLATE_STATUSES = ['active', 'inactive'];
 
 const inferSkillTypeFromName = (skill = {}) => {
   const upperName = String(skill.name || '').trim().toUpperCase();
@@ -309,6 +311,54 @@ const getSkillFromMapOrThrow = (skillsMap, skillId, messageIfMissing = 'Skill no
   return skill;
 };
 
+const normalizeShiftTemplateCode = (code) => String(code || '').trim().toUpperCase();
+
+const normalizeShiftTemplateName = (name) => {
+  if (name === undefined || name === null) return '';
+  return String(name).trim();
+};
+
+const sumOperativeMinutes = ({ blocks, skillsMap }) => blocks.reduce((total, block) => {
+  const skill = skillsMap[String(block.skillId)];
+  if (!skill || skill.type !== 'operative') return total;
+  return total + (timeToMinutes(block.end) - timeToMinutes(block.start));
+}, 0);
+
+const ensureActiveSkillsOrThrow = ({ blocks, skillsMap }) => {
+  for (const block of blocks) {
+    const skill = skillsMap[String(block.skillId)];
+    if (!skill) {
+      throw new createError.BadRequest('Skill no existe o está inactiva');
+    }
+    if (skill.status !== 'active') {
+      throw new createError.BadRequest(`La skill "${skill.name}" está inactiva y no puede usarse`);
+    }
+  }
+};
+
+const toShiftTemplateResponse = ({ template, skillsMap }) => {
+  const operativeMinutes = sumOperativeMinutes({
+    blocks: template.blocks || [],
+    skillsMap
+  });
+
+  return {
+    _id: template._id,
+    code: template.code,
+    name: template.name || '',
+    status: template.status || 'active',
+    operativeMinutes,
+    operativeHours: Number((operativeMinutes / 60).toFixed(2)),
+    blocks: (template.blocks || []).map((block) => ({
+      start: block.start,
+      end: block.end,
+      skill: skillsMap[String(block.skillId)] || null
+    })),
+    createdAt: template.createdAt,
+    updatedAt: template.updatedAt || null
+  };
+};
+
 /* =========================
  * Validación lógica día (REST / BREAK / 4H)
  * - Mantiene tus mismas reglas y mensajes clave
@@ -392,6 +442,25 @@ const validateDayBlocksBusinessRules = ({ blocks, skillsMap, allowedSkillsSet = 
 /* =========================
  * Queries base
  * ========================= */
+
+const getShiftTemplates = async () => {
+  const templatesCollection = await Database(SHIFT_TEMPLATES_COLLECTION);
+  const skillsCollection = await Database(SKILLS_COLLECTION);
+
+  const templates = await templatesCollection
+    .find({})
+    .sort({ status: 1, code: 1, createdAt: -1 })
+    .toArray();
+
+  const skillIds = templates.flatMap((template) => (
+    (template.blocks || []).map((block) => String(block.skillId))
+  ));
+  const skillsMap = skillIds.length
+    ? await buildSkillsMapFromIds(skillsCollection, skillIds)
+    : {};
+
+  return templates.map((template) => toShiftTemplateResponse({ template, skillsMap }));
+};
 
 const getAll = async () => {
   const collection = await Database(COLLECTION);
@@ -912,6 +981,132 @@ const getDailyOperativeHoursReport = async ({ date, statuses, mode, campaign }) 
 /* =========================
  * Commands
  * ========================= */
+
+const createShiftTemplate = async ({ code, name, blocks, createdBy }) => {
+  const templatesCollection = await Database(SHIFT_TEMPLATES_COLLECTION);
+  const skillsCollection = await Database(SKILLS_COLLECTION);
+
+  const normalizedCode = normalizeShiftTemplateCode(code);
+  const normalizedName = normalizeShiftTemplateName(name);
+
+  if (!normalizedCode) {
+    throw new createError.BadRequest('code es obligatorio');
+  }
+
+  assertValidObjectId(createdBy, 'CreatedBy inválido');
+
+  const existing = await templatesCollection.findOne({
+    code: { $regex: `^${normalizedCode}$`, $options: 'i' }
+  });
+
+  if (existing) {
+    throw new createError.Conflict('Ya existe un turno tipo con ese código');
+  }
+
+  const validatedBlocks = validateBlocksStructure(blocks);
+  const skillIds = validatedBlocks.map((block) => String(block.skillId));
+  const skillsMap = await buildSkillsMapFromIds(skillsCollection, skillIds);
+
+  ensureActiveSkillsOrThrow({ blocks: validatedBlocks, skillsMap });
+
+  validateDayBlocksBusinessRules({
+    blocks: validatedBlocks,
+    skillsMap,
+    allowedSkillsSet: null,
+    userName: `Turno tipo ${normalizedCode}`
+  });
+
+  const blocksToSave = validatedBlocks.map((block) => ({
+    start: block.start,
+    end: block.end,
+    skillId: new ObjectId(block.skillId)
+  }));
+
+  const result = await templatesCollection.insertOne({
+    code: normalizedCode,
+    name: normalizedName,
+    blocks: blocksToSave,
+    status: 'active',
+    createdBy: new ObjectId(createdBy),
+    createdAt: new Date()
+  });
+
+  return {
+    id: result.insertedId
+  };
+};
+
+const updateShiftTemplate = async (id, { code, name, blocks, status, updatedBy }) => {
+  assertValidObjectId(id, 'ID inválido');
+  assertValidObjectId(updatedBy, 'UpdatedBy inválido');
+
+  const templatesCollection = await Database(SHIFT_TEMPLATES_COLLECTION);
+  const skillsCollection = await Database(SKILLS_COLLECTION);
+
+  const template = await templatesCollection.findOne({ _id: new ObjectId(id) });
+  if (!template) {
+    throw new createError.NotFound('Turno tipo no encontrado');
+  }
+
+  const updateData = {};
+
+  if (code !== undefined) {
+    const normalizedCode = normalizeShiftTemplateCode(code);
+    if (!normalizedCode) {
+      throw new createError.BadRequest('code es obligatorio');
+    }
+
+    const existing = await templatesCollection.findOne({
+      _id: { $ne: new ObjectId(id) },
+      code: { $regex: `^${normalizedCode}$`, $options: 'i' }
+    });
+
+    if (existing) {
+      throw new createError.Conflict('Ya existe un turno tipo con ese código');
+    }
+
+    updateData.code = normalizedCode;
+  }
+
+  if (name !== undefined) {
+    updateData.name = normalizeShiftTemplateName(name);
+  }
+
+  if (status !== undefined) {
+    if (!ALLOWED_SHIFT_TEMPLATE_STATUSES.includes(status)) {
+      throw new createError.BadRequest('status inválido, permitido: active | inactive');
+    }
+    updateData.status = status;
+  }
+
+  if (blocks !== undefined) {
+    const validatedBlocks = validateBlocksStructure(blocks);
+    const skillIds = validatedBlocks.map((block) => String(block.skillId));
+    const skillsMap = await buildSkillsMapFromIds(skillsCollection, skillIds);
+
+    ensureActiveSkillsOrThrow({ blocks: validatedBlocks, skillsMap });
+
+    validateDayBlocksBusinessRules({
+      blocks: validatedBlocks,
+      skillsMap,
+      allowedSkillsSet: null,
+      userName: updateData.code || template.code
+    });
+
+    updateData.blocks = validatedBlocks.map((block) => ({
+      start: block.start,
+      end: block.end,
+      skillId: new ObjectId(block.skillId)
+    }));
+  }
+
+  updateData.updatedBy = new ObjectId(updatedBy);
+  updateData.updatedAt = new Date();
+
+  await templatesCollection.updateOne({ _id: new ObjectId(id) }, { $set: updateData });
+
+  return { updated: true };
+};
 
 const create = async (horario) => {
   const collection = await Database(COLLECTION);
@@ -1633,6 +1828,7 @@ const editPublishedWeek = async ({ userId, date, schedules, editedBy }) => {
 };
 
 module.exports.HorariosService = {
+  getShiftTemplates,
   getAll,
   getById,
   getByUserId,
@@ -1644,6 +1840,8 @@ module.exports.HorariosService = {
   getStaffingTableByDate,
   getWeeklyHoursReport,
   getDailyOperativeHoursReport,
+  createShiftTemplate,
+  updateShiftTemplate,
   create,
   update,
   publishByDate,

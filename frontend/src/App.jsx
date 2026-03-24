@@ -9,6 +9,7 @@ import SkillsPage from './pages/admin/SkillsPage';
 import UsersPage from './pages/admin/UsersPage';
 import DailySchedulesPage from './pages/admin/DailySchedulesPage';
 import CreateDraftPage from './pages/admin/CreateDraftPage';
+import ShiftTemplatesPage from './pages/admin/ShiftTemplatesPage';
 import PublishWeekPage from './pages/admin/PublishWeekPage';
 import EditPublishedWeekPage from './pages/admin/EditPublishedWeekPage';
 import StaffingPage from './pages/admin/StaffingPage';
@@ -30,6 +31,7 @@ export default function App() {
             <Route path="users" element={<UsersPage />} />
             <Route path="horarios-dia" element={<DailySchedulesPage />} />
             <Route path="crear-borrador" element={<CreateDraftPage />} />
+            <Route path="turnos-tipo" element={<ShiftTemplatesPage />} />
             <Route path="publicar-semana" element={<PublishWeekPage />} />
             <Route path="editar-semana" element={<EditPublishedWeekPage />} />
             <Route path="dotacion" element={<StaffingPage />} />

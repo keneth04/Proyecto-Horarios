@@ -12,6 +12,30 @@ const router = express.Router();
 
 module.exports.HorariosAPI = (app) => {
 
+  // 📌 ADMIN - turnos tipo reutilizables
+  router.get(
+    '/turnos-tipo',
+    AuthMiddleware,
+    RoleMiddleware(['admin']),
+    HorariosController.getShiftTemplates
+  );
+
+  router.post(
+    '/turnos-tipo',
+    AuthMiddleware,
+    RoleMiddleware(['admin']),
+    validateRequest({ body: horariosSchemas.shiftTemplateCreate }),
+    HorariosController.createShiftTemplate
+  );
+
+  router.patch(
+    '/turnos-tipo/:id',
+    AuthMiddleware,
+    RoleMiddleware(['admin']),
+    validateRequest({ params: horariosSchemas.idParam, body: horariosSchemas.shiftTemplateUpdate }),
+    HorariosController.updateShiftTemplate
+  );
+
   // 📌 ADMIN - ver horarios de un día (publicados y/o borradores)
   router.get(
     '/dia',

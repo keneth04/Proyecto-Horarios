@@ -5,11 +5,12 @@ import BrandLogo, { BrandMark } from '../components/BrandLogo';
 const links = [
   { to: '/admin/skills', label: 'Habilidades' },
   { to: '/admin/users', label: 'Agentes' },
-  { to: '/admin/horarios-dia', label: 'Horarios por día' },
-  { to: '/admin/crear-borrador', label: 'Crear borrador' },
+  { to: '/admin/horarios-dia', label: 'Ver horarios por día' },
+  { to: '/admin/turnos-tipo', label: 'Turnos reutilizables' },
+  { to: '/admin/crear-borrador', label: 'Crear horario borrador' },
   { to: '/admin/publicar-semana', label: 'Publicar semana' },
   { to: '/admin/editar-semana', label: 'Editar semana' },
-  { to: '/admin/dotacion', label: 'Dotación' },
+  { to: '/admin/dotacion', label: 'Dotación por día' },
   { to: '/admin/reporte-horas', label: 'Reporte de horas' }
 ];
 

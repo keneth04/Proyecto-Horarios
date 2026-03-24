@@ -95,5 +95,9 @@ export const HorariosApi = {
     });
   },
   
+  shiftTemplates: () => api.get('/horarios/turnos-tipo'),
+  createShiftTemplate: (payload) => api.post('/horarios/turnos-tipo', payload),
+  updateShiftTemplate: (id, payload) => api.patch(`/horarios/turnos-tipo/${id}`, payload),
+  
   mySchedule: () => api.get('/horarios/mi-horario')
 };

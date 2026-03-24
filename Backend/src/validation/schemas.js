@@ -564,6 +564,50 @@ const horariosSchemas = {
       date: optionalIsoDate({ value: body.date, field: 'date', source, required: true }),
       schedules: body.schedules.map((entry, index) => validateScheduleEntry(entry, source, index))
     };
+  },
+  shiftTemplateCreate: (body) => {
+    const source = 'body';
+    assertPlainObject(body, source);
+    parseUnknownFields(body, ['code', 'name', 'blocks'], source);
+
+    return {
+      code: requireString({ value: body.code, field: 'code', source }),
+      name: optionalString({ value: body.name, field: 'name', source, allowEmpty: true }),
+      blocks: validateBlocks({ value: body.blocks, source, required: true })
+    };
+  },
+  shiftTemplateUpdate: (body) => {
+    const source = 'body';
+    assertPlainObject(body, source);
+    parseUnknownFields(body, ['code', 'name', 'blocks', 'status'], source);
+
+    if (Object.keys(body).length === 0) {
+      throw buildValidationError('Error de validación en body', [{ field: 'body', message: 'Debe enviar al menos un campo para actualizar', code: 'object.min' }]);
+    }
+
+    const result = {};
+
+    if (body.code !== undefined) {
+      result.code = requireString({ value: body.code, field: 'code', source });
+    }
+
+    if (body.name !== undefined) {
+      result.name = optionalString({ value: body.name, field: 'name', source, allowEmpty: true });
+    }
+
+    if (body.blocks !== undefined) {
+      result.blocks = validateBlocks({ value: body.blocks, source, required: true });
+    }
+
+    if (body.status !== undefined) {
+      const status = requireString({ value: body.status, field: 'status', source });
+      if (!['active', 'inactive'].includes(status)) {
+        throw buildValidationError('Error de validación en body', [{ field: 'status', message: 'status inválido, permitido: active | inactive', code: 'any.only' }]);
+      }
+      result.status = status;
+    }
+
+    return result;
   }
 };
 
