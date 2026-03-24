@@ -70,6 +70,28 @@ export const HorariosApi = {
 
     return api.get(`/horarios/reporte/horas-semana?${params.toString()}`);
   },
+  
+  dailyOperativeHoursReport: ({ date, statuses, mode, campaign }) => {
+    const params = new URLSearchParams();
+
+    if (date) {
+      params.set('date', date);
+    }
+
+    if (Array.isArray(statuses) && statuses.length > 0) {
+      params.set('statuses', statuses.join(','));
+    }
+
+    if (mode) {
+      params.set('mode', mode);
+    }
+
+    if (campaign !== undefined && campaign !== null && String(campaign).trim() !== '') {
+      params.set('campaign', String(campaign).trim());
+    }
+
+    return api.get(`/horarios/reporte/horas-operativas-diarias?${params.toString()}`);
+  },
 
   downloadDailyOperativeHoursExcel: ({ date, statuses, mode, campaign }) => {
     const params = new URLSearchParams();

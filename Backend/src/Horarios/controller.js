@@ -181,6 +181,26 @@ module.exports.HorariosController = {
     }
   },
 
+  getDailyOperativeHoursReport: async (req, res, next) => {
+    try {
+      const { date, statuses, mode, campaign } = req.query;
+      const parsedStatuses = statuses
+        ? String(statuses).split(',').map((status) => status.trim()).filter(Boolean)
+        : undefined;
+
+      const report = await HorariosService.getDailyOperativeHoursReport({
+        date,
+        statuses: parsedStatuses,
+        mode,
+        campaign
+      });
+
+      Response.success(res, 200, 'Reporte diario de horas operativas por agente', report);
+    } catch (error) {
+      next(error);
+    }
+  },
+
   downloadDailyOperativeHoursExcel: async (req, res, next) => {
     try {
       const { date, statuses, mode, campaign } = req.query;

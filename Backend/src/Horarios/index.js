@@ -101,6 +101,14 @@ module.exports.HorariosAPI = (app) => {
 
   // 📌 ADMIN - descargar Excel de horas operativas planificadas por agente/día
   router.get(
+    '/reporte/horas-operativas-diarias',
+    AuthMiddleware,
+    RoleMiddleware(['admin']),
+    validateRequest({ query: horariosSchemas.reportQuery }),
+    HorariosController.getDailyOperativeHoursReport
+  );
+
+  router.get(
     '/reporte/horas-operativas-diarias/excel',
     AuthMiddleware,
     RoleMiddleware(['admin']),

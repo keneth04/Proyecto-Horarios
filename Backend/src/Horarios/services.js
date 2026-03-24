@@ -984,6 +984,7 @@ const getDailyOperativeHoursReport = async ({ date, statuses, mode, campaign }) 
   ]).toArray();
 
   const rows = rowsSummary.map((row) => ({
+    userId: row._id.userId.toString(),
     agentName: row._id.agentName,
     date: row._id.date,
     operativeHours: Number((row.operativeMinutes / 60).toFixed(2))
