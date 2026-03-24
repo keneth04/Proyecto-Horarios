@@ -135,6 +135,65 @@ const normalizeCampaignFilter = (campaign) => {
   return campaign.trim().toLowerCase();
 };
 
+const buildDurationMinutesExpression = (startPath, endPath) => ({
+  $subtract: [
+    {
+      $add: [
+        { $multiply: [{ $toInt: { $substrBytes: [endPath, 0, 2] } }, 60] },
+        { $toInt: { $substrBytes: [endPath, 3, 2] } }
+      ]
+    },
+    {
+      $add: [
+        { $multiply: [{ $toInt: { $substrBytes: [startPath, 0, 2] } }, 60] },
+        { $toInt: { $substrBytes: [startPath, 3, 2] } }
+      ]
+    }
+  ]
+});
+
+const buildReportBasePipeline = ({ weekStart, weekEnd, safeStatuses, campaignFilter }) => {
+  const basePipeline = [
+    {
+      $match: {
+        status: { $in: safeStatuses },
+        date: { $gte: weekStart, $lte: weekEnd }
+      }
+    },
+    {
+      $lookup: {
+        from: USERS_COLLECTION,
+        localField: 'userId',
+        foreignField: '_id',
+        as: 'user'
+      }
+    },
+    {
+      $unwind: '$user'
+    }
+  ];
+
+  if (campaignFilter) {
+    basePipeline.push({
+      $match: {
+        $expr: {
+          $eq: [
+            {
+              $toLower: {
+                $trim: {
+                  input: { $ifNull: ['$user.campaign', ''] }
+                }
+              }
+            },
+            campaignFilter
+          ]
+        }
+      }
+    });
+  }
+
+  return basePipeline;
+};
 
 const normalizeDate = (date) => {
   if (typeof date === 'string') {
@@ -650,106 +709,118 @@ const getWeeklyHoursReport = async ({ date, statuses, mode, campaign }) => {
   const campaignFilter = normalizeCampaignFilter(campaign);
 
   const collection = await Database(COLLECTION);
-  const usersCollection = await Database(USERS_COLLECTION);
-  const skillsCollection = await Database(SKILLS_COLLECTION);
 
   const normalizedDate = normalizeDate(date || new Date());
   const { weekStart, weekEnd } = getWeekRange(normalizedDate);
 
-  const schedules = await collection
-    .find({
-      status: { $in: safeStatuses },
-      date: { $gte: weekStart, $lte: weekEnd }
-    })
-    .toArray();
+  const summary = await collection.aggregate([
+    ...buildReportBasePipeline({ weekStart, weekEnd, safeStatuses, campaignFilter }),
+    {
+      $addFields: {
+        blocks: { $ifNull: ['$blocks', []] },
+        agentName: { $ifNull: ['$user.name', 'Sin nombre'] },
+        agentCampaign: { $trim: { input: { $ifNull: ['$user.campaign', ''] } } }
+      }
 
-  const userIds = [...new Set(schedules.map((schedule) => schedule.userId.toString()))];
-  const users = userIds.length
-    ? await usersCollection
-      .find(
-        { _id: { $in: userIds.map((id) => new ObjectId(id)) } },
-        { projection: { _id: 1, name: 1, campaign: 1 } }
-      )
-      .toArray()
-    : [];
+    },
+    {
+      $unwind: {
+        path: '$blocks',
+        preserveNullAndEmptyArrays: true
+      }
+    },
+    {
+      $lookup: {
+        from: SKILLS_COLLECTION,
+        localField: 'blocks.skillId',
+        foreignField: '_id',
+        as: 'skill'
+      }
+    },
+    {
+      $unwind: {
+        path: '$skill',
+        preserveNullAndEmptyArrays: true
+      }
+    },
+    {
+      $addFields: {
+        durationMinutes: {
+          $cond: [
+            {
+              $and: [
+                { $ne: ['$blocks.start', null] },
+                { $ne: ['$blocks.end', null] },
+                { $ne: ['$skill._id', null] }
+              ]
+            },
+            buildDurationMinutesExpression('$blocks.start', '$blocks.end'),
+            0
+          ]
+        }
+      }
+    },
+    {
+      $group: {
+        _id: {
+          userId: '$userId',
+          agentName: '$agentName',
+          campaign: '$agentCampaign',
+          skillName: '$skill.name',
+          skillType: '$skill.type'
+        },
+        minutes: { $sum: '$durationMinutes' }
+      }
+    },
+    {
+      $group: {
+        _id: {
+          userId: '$_id.userId',
+          agentName: '$_id.agentName',
+          campaign: '$_id.campaign'
+        },
+        skills: {
+          $push: {
+            name: '$_id.skillName',
+            minutes: '$minutes'
+          }
+        },
+        totalOperativeMinutes: {
+          $sum: {
+            $cond: [
+              { $eq: ['$_id.skillType', 'operative'] },
+              '$minutes',
+              0
+            ]
+          }
+        }
+      }
+    }
 
-  const usersMap = users.reduce((acc, user) => {
-    acc[user._id.toString()] = user;
-    return acc;
-  }, {});
+  ]).toArray();
 
-  const filteredSchedules = campaignFilter
-    ? schedules.filter((schedule) => {
-      const user = usersMap[schedule.userId.toString()];
-      const userCampaign = String(user?.campaign || '').trim().toLowerCase();
-      return userCampaign === campaignFilter;
-    })
-    : schedules;
-
-  const skillIds = filteredSchedules.flatMap((schedule) =>
-    (schedule.blocks || []).map((block) => block.skillId.toString())
-  );
-  const skillsMap = await buildSkillsMapFromIds(skillsCollection, skillIds);
-
-  const reportByUser = {};
   const allSkillNames = new Set();
-
-  for (const schedule of filteredSchedules) {
-    const userId = schedule.userId.toString();
-    const user = usersMap[userId];
-
-    if (!reportByUser[userId]) {
-      reportByUser[userId] = {
-        userId,
-        agentName: user?.name || 'Sin nombre',
-        campaign: String(user?.campaign || '').trim(),
-        totalsBySkillMinutes: {},
-        totalOperativeMinutes: 0
-      };
-    }
-
-    for (const block of schedule.blocks || []) {
-      const skillId = block.skillId.toString();
-      const skill = skillsMap[skillId];
-
-      if (!skill) {
-        continue;
-      }
-
-      const durationMinutes = timeToMinutes(block.end) - timeToMinutes(block.start);
-      reportByUser[userId].totalsBySkillMinutes[skillId] =
-        (reportByUser[userId].totalsBySkillMinutes[skillId] || 0) + durationMinutes;
-
-      allSkillNames.add(skill.name);
-
-      if (skill.type === 'operative') {
-        reportByUser[userId].totalOperativeMinutes += durationMinutes;
-      }
-    }
-  }
-
-  const skillColumns = [...allSkillNames].sort((a, b) => a.localeCompare(b));
-
-  const agents = Object.values(reportByUser)
-    .sort((a, b) => a.agentName.localeCompare(b.agentName))
+  const agents = summary
     .map((agent) => {
       const totalsBySkillHours = {};
 
-      for (const [skillId, minutes] of Object.entries(agent.totalsBySkillMinutes)) {
-        const skill = skillsMap[skillId];
-        if (!skill) continue;
-
-        totalsBySkillHours[skill.name] = Number((minutes / 60).toFixed(2));
+      for (const skill of agent.skills || []) {
+        if (!skill?.name || typeof skill.minutes !== 'number' || skill.minutes <= 0) continue;
+        allSkillNames.add(skill.name);
+        totalsBySkillHours[skill.name] = Number((skill.minutes / 60).toFixed(2));
       }
 
       return {
-        userId: agent.userId,
-        agentName: agent.agentName,
-        campaign: agent.campaign,
+        userId: agent._id.userId.toString(),
+        agentName: agent._id.agentName || 'Sin nombre',
+        campaign: agent._id.campaign || '',
         totalsBySkillHours,
         totalOperativeHours: Number((agent.totalOperativeMinutes / 60).toFixed(2))
       };
-    });
+    })
+    .sort((a, b) => a.agentName.localeCompare(b.agentName));
+
+  const skillColumns = [...allSkillNames].sort((a, b) => a.localeCompare(b));
 
   return {
     week: {
@@ -769,87 +840,62 @@ const getDailyOperativeHoursReport = async ({ date, statuses, mode, campaign }) 
   const campaignFilter = normalizeCampaignFilter(campaign);
 
   const collection = await Database(COLLECTION);
-  const usersCollection = await Database(USERS_COLLECTION);
-  const skillsCollection = await Database(SKILLS_COLLECTION);
 
   const normalizedDate = normalizeDate(date || new Date());
   const { weekStart, weekEnd } = getWeekRange(normalizedDate);
 
-  const schedules = await collection
-    .find({
-      status: { $in: safeStatuses },
-      date: { $gte: weekStart, $lte: weekEnd }
-    })
-    .toArray();
-
-  const userIds = [...new Set(schedules.map((schedule) => schedule.userId.toString()))];
-  const users = userIds.length
-    ? await usersCollection
-      .find(
-        { _id: { $in: userIds.map((id) => new ObjectId(id)) } },
-        { projection: { _id: 1, name: 1, campaign: 1 } }
-      )
-      .toArray()
-    : [];
-
-  const usersMap = users.reduce((acc, user) => {
-    acc[user._id.toString()] = user;
-    return acc;
-  }, {});
-
-  const filteredSchedules = campaignFilter
-    ? schedules.filter((schedule) => {
-      const user = usersMap[schedule.userId.toString()];
-      const userCampaign = String(user?.campaign || '').trim().toLowerCase();
-      return userCampaign === campaignFilter;
-    })
-    : schedules;
-
-  const skillIds = filteredSchedules.flatMap((schedule) =>
-    (schedule.blocks || []).map((block) => block.skillId.toString())
-  );
-  const skillsMap = await buildSkillsMapFromIds(skillsCollection, skillIds);
-
-  const rowsMap = {};
-
-  for (const schedule of filteredSchedules) {
-    const userId = schedule.userId.toString();
-    const user = usersMap[userId];
-    const scheduleDate = normalizeDate(schedule.date);
-    const rowKey = `${userId}::${scheduleDate}`;
-
-    if (!rowsMap[rowKey]) {
-      rowsMap[rowKey] = {
-        userId,
-        agentName: user?.name || 'Sin nombre',
-        date: scheduleDate,
-        operativeMinutes: 0
-      };
-    }
-
-    for (const block of schedule.blocks || []) {
-      const skillId = block.skillId.toString();
-      const skill = skillsMap[skillId];
-
-      if (!skill || skill.type !== 'operative') {
-        continue;
+  const rowsSummary = await collection.aggregate([
+    ...buildReportBasePipeline({ weekStart, weekEnd, safeStatuses, campaignFilter }),
+    {
+      $unwind: '$blocks'
+    },
+    {
+      $lookup: {
+        from: SKILLS_COLLECTION,
+        localField: 'blocks.skillId',
+        foreignField: '_id',
+        as: 'skill'
       }
-
-      rowsMap[rowKey].operativeMinutes += timeToMinutes(block.end) - timeToMinutes(block.start);
+    },
+    {
+      $unwind: '$skill'
+    },
+    {
+      $match: {
+        'skill.type': 'operative'
+      }
+    },
+    {
+      $group: {
+        _id: {
+          userId: '$userId',
+          agentName: { $ifNull: ['$user.name', 'Sin nombre'] },
+          date: {
+            $dateToString: {
+              format: '%Y-%m-%d',
+              date: '$date',
+              timezone: 'UTC'
+            }
+          }
+        },
+        operativeMinutes: {
+          $sum: buildDurationMinutesExpression('$blocks.start', '$blocks.end')
+        }
+      }
+    },
+    {
+      $sort: {
+        '_id.agentName': 1,
+        '_id.date': 1
+      }
     }
-  }
+  ]).toArray();
 
-  const rows = Object.values(rowsMap)
-    .filter((row) => row.operativeMinutes > 0)
-    .sort((a, b) => {
-      if (a.agentName !== b.agentName) return a.agentName.localeCompare(b.agentName);
-      return a.date.localeCompare(b.date);
-    })
-    .map((row) => ({
-      agentName: row.agentName,
-      date: row.date,
-      operativeHours: Number((row.operativeMinutes / 60).toFixed(2))
-    }));
+  const rows = rowsSummary.map((row) => ({
+    agentName: row._id.agentName,
+    date: row._id.date,
+    operativeHours: Number((row.operativeMinutes / 60).toFixed(2))
+  }));
 
   return {
     week: {
