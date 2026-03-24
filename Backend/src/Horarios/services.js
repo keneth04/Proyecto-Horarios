@@ -801,6 +801,7 @@ const getWeeklyHoursReport = async ({ date, statuses, mode, campaign }) => {
   const campaignFilter = normalizeCampaignFilter(campaign);
 
   const collection = await Database(COLLECTION);
+  const usersCollection = await Database(USERS_COLLECTION);
 
   const normalizedDate = normalizeDate(date || new Date());
   const { weekStart, weekEnd } = getWeekRange(normalizedDate);
@@ -891,23 +892,107 @@ const getWeeklyHoursReport = async ({ date, statuses, mode, campaign }) => {
 
   ]).toArray();
 
+   const absenceSummary = await collection.aggregate([
+    ...buildReportBasePipeline({ weekStart, weekEnd, safeStatuses, campaignFilter }),
+    {
+      $unwind: {
+        path: '$blocks',
+        preserveNullAndEmptyArrays: false
+      }
+    },
+    {
+      $lookup: {
+        from: SKILLS_COLLECTION,
+        localField: 'blocks.skillId',
+        foreignField: '_id',
+        as: 'skill'
+      }
+    },
+    {
+      $unwind: {
+        path: '$skill',
+        preserveNullAndEmptyArrays: false
+      }
+    },
+    {
+      $match: {
+        'skill.type': 'absence'
+      }
+    },
+    {
+      $group: {
+        _id: {
+          userId: '$userId',
+          date: {
+            $dateToString: {
+              format: '%Y-%m-%d',
+              date: '$date',
+              timezone: 'UTC'
+            }
+          }
+        }
+      }
+    },
+    {
+      $group: {
+        _id: '$_id.userId',
+        absenceDays: { $sum: 1 }
+      }
+    }
+  ]).toArray();
+
+  const absenceByUserId = new Map(
+    absenceSummary.map((row) => [String(row._id), Number(row.absenceDays || 0)])
+  );
+
+  const activeAgents = await usersCollection
+    .find({
+      role: 'agente',
+      status: 'active'
+    })
+    .project({ _id: 1, name: 1, campaign: 1 })
+    .toArray();
+
+  const filteredAgents = campaignFilter
+    ? activeAgents.filter((agent) => String(agent.campaign || '').trim().toLowerCase() === campaignFilter)
+    : activeAgents;
+
+  const summaryByUserId = new Map();
+  for (const agent of summary) {
+    summaryByUserId.set(String(agent._id.userId), agent);
+  }
+
   const allSkillNames = new Set();
-  const agents = summary
-    .map((agent) => {
+  const agents = filteredAgents
+    .map((agentUser) => {
+      const agent = summaryByUserId.get(String(agentUser._id));
       const totalsBySkillHours = {};
 
-      for (const skill of agent.skills || []) {
+      for (const skill of agent?.skills || []) {
         if (!skill?.name || typeof skill.minutes !== 'number' || skill.minutes <= 0) continue;
         allSkillNames.add(skill.name);
         totalsBySkillHours[skill.name] = Number((skill.minutes / 60).toFixed(2));
       }
 
+      const absenceDays = absenceByUserId.get(String(agentUser._id)) || 0;
+      const expectedOperativeHours = Math.max(0, WEEKLY_REQUIRED_HOURS - (absenceDays * 7));
+      const totalOperativeHours = Number((((agent?.totalOperativeMinutes || 0) / 60)).toFixed(2));
+      const hoursBalance = Number((totalOperativeHours - expectedOperativeHours).toFixed(2));
+
+      let balanceStatus = 'balanced';
+      if (hoursBalance > 0) balanceStatus = 'excess';
+      if (hoursBalance < 0) balanceStatus = 'deficit';
+
       return {
-        userId: agent._id.userId.toString(),
-        agentName: agent._id.agentName || 'Sin nombre',
-        campaign: agent._id.campaign || '',
+      userId: agentUser._id.toString(),
+        agentName: agentUser.name || 'Sin nombre',
+        campaign: String(agentUser.campaign || '').trim(),
         totalsBySkillHours,
-        totalOperativeHours: Number((agent.totalOperativeMinutes / 60).toFixed(2))
+        totalOperativeHours,
+        expectedOperativeHours,
+        absenceDays,
+        hoursBalance,
+        balanceStatus
       };
     })
     .sort((a, b) => a.agentName.localeCompare(b.agentName));
