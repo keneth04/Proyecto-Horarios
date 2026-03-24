@@ -8,13 +8,43 @@
 
 const { AuthService } = require('./services');
 const { Response } = require('../common/response');
+const { Config } = require('../config');
+const { getAuthCookieOptions } = require('../common/cookies');
 
 module.exports.AuthController = {
 
   login: async (req, res, next) => {
     try {
       const result = await AuthService.login(req.body);
-      Response.success(res, 200, 'Login exitoso', result);
+      res.cookie(Config.session.cookieName, result.token, getAuthCookieOptions());
+      Response.success(res, 200, 'Login exitoso', {
+        user: result.user
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  getSession: async (req, res, next) => {
+    try {
+      const user = await AuthService.getSessionUser(req.user.id);
+      Response.success(res, 200, 'Sesión activa', {
+        user
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  logout: async (req, res, next) => {
+    try {
+      res.clearCookie(Config.session.cookieName, {
+        ...getAuthCookieOptions(),
+        expires: new Date(0),
+        maxAge: 0
+      });
+
+      Response.success(res, 200, 'Sesión cerrada', {});
     } catch (error) {
       next(error);
     }

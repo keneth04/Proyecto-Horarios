@@ -41,7 +41,7 @@ export default function LoginPage() {
     setErrorMessage('');
     try {
       const { data } = await AuthApi.login({ email, password });
-      login(data.body.token, data.body.user);
+      login(data.body.user);
       navigate(data.body.user.role === 'admin' ? '/admin' : '/agent', { replace: true });
     } catch (error) {
       const message = getErrorMessage(error);

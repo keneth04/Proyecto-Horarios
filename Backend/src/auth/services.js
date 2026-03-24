@@ -156,6 +156,24 @@ const generateToken = (user) => {
   });
 };
 
+const getSessionUser = async (userId) => {
+  const collection = await Database(COLLECTION);
+  const user = await collection.findOne({ _id: new ObjectId(userId) });
+
+  if (!user) {
+    throw new createError.Unauthorized('Sesión inválida');
+  }
+
+  validateUserStatus(user);
+
+  return {
+    id: user._id,
+    name: user.name,
+    email: user.email,
+    role: user.role
+  };
+};
+
 const forgotPassword = async ({ email }) => {
   if (!email) {
     throw new createError.BadRequest('El correo es obligatorio');
@@ -267,6 +285,7 @@ const login = async (credentials) => {
 
 module.exports.AuthService = {
   login,
+  getSessionUser,
   forgotPassword,
   resetPassword
 };

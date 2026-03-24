@@ -18,7 +18,8 @@ module.exports.SecurityMiddlewares = ({ allowedOrigins, jsonLimit }) => {
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Authorization', 'Content-Type'],
-    maxAge: 86400
+    maxAge: 86400,
+    credentials: true
   });
 
   return {

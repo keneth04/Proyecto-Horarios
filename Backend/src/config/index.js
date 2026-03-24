@@ -26,6 +26,8 @@ const getSmtpConfig = () => ({
   from: process.env.SMTP_FROM
 });
 
+const isProduction = process.env.NODE_ENV === 'production';
+
 const Config = {
   port: process.env.PORT,
   mongoUri: process.env.MONGO_URI,
@@ -34,6 +36,14 @@ const Config = {
   http: {
     jsonLimit: process.env.HTTP_JSON_LIMIT || '100kb',
     corsAllowedOrigins: toOrigins(process.env.CORS_ALLOWED_ORIGINS, ['http://localhost:5173'])
+  },
+  session: {
+    cookieName: process.env.AUTH_COOKIE_NAME || 'auth_token',
+    sameSite: process.env.AUTH_COOKIE_SAMESITE || (isProduction ? 'strict' : 'lax'),
+    secure: process.env.AUTH_COOKIE_SECURE
+      ? process.env.AUTH_COOKIE_SECURE === 'true'
+      : isProduction,
+    maxAgeMs: toPositiveInt(process.env.AUTH_COOKIE_MAX_AGE_MS, 8 * 60 * 60 * 1000)
   },
   rateLimit: {
     auth: {
