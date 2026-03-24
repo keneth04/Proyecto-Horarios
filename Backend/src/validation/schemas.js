@@ -608,6 +608,41 @@ const horariosSchemas = {
     }
 
     return result;
+    },
+  bulkAssignShiftTemplate: (body) => {
+    const source = 'body';
+    assertPlainObject(body, source);
+    parseUnknownFields(body, ['templateId', 'userIds', 'startDate', 'endDate', 'overwriteDraft'], source);
+
+    if (!Array.isArray(body.userIds) || body.userIds.length === 0) {
+      throw buildValidationError('Error de validación en body', [{ field: 'userIds', message: 'userIds debe contener al menos un agente', code: 'array.min' }]);
+    }
+
+    const userIds = [];
+    const seen = new Set();
+
+    body.userIds.forEach((userId, index) => {
+      if (typeof userId !== 'string' || !OBJECT_ID_REGEX.test(userId)) {
+        throw buildValidationError('Error de validación en body', [{ field: `userIds.${index}`, message: 'Cada userId debe ser ObjectId válido', code: 'string.pattern.base' }]);
+      }
+
+      if (!seen.has(userId)) {
+        seen.add(userId);
+        userIds.push(userId);
+      }
+    });
+
+    const overwriteDraft = body.overwriteDraft === undefined
+      ? false
+      : Boolean(body.overwriteDraft);
+
+    return {
+      templateId: optionalObjectId({ value: body.templateId, field: 'templateId', source, required: true }),
+      userIds,
+      startDate: optionalIsoDate({ value: body.startDate, field: 'startDate', source, required: true }),
+      endDate: optionalIsoDate({ value: body.endDate, field: 'endDate', source, required: true }),
+      overwriteDraft
+    };
   }
 };
 

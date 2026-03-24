@@ -36,6 +36,14 @@ module.exports.HorariosAPI = (app) => {
     HorariosController.updateShiftTemplate
   );
 
+  router.post(
+    '/asignacion-masiva',
+    AuthMiddleware,
+    RoleMiddleware(['admin']),
+    validateRequest({ body: horariosSchemas.bulkAssignShiftTemplate }),
+    HorariosController.bulkAssignShiftTemplate
+  );
+
   // 📌 ADMIN - ver horarios de un día (publicados y/o borradores)
   router.get(
     '/dia',

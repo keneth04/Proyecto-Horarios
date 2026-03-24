@@ -318,6 +318,29 @@ const normalizeShiftTemplateName = (name) => {
   return String(name).trim();
 };
 
+const getDateRangeDays = ({ startDate, endDate }) => {
+  const start = parseStrictISODateOrThrow(startDate, 'startDate inválida, formato esperado YYYY-MM-DD');
+  const end = parseStrictISODateOrThrow(endDate, 'endDate inválida, formato esperado YYYY-MM-DD');
+
+  if (start > end) {
+    throw new createError.BadRequest('startDate no puede ser mayor a endDate');
+  }
+
+  const days = [];
+  const cursor = new Date(start);
+
+  while (cursor <= end) {
+    days.push(cursor.toISOString().split('T')[0]);
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  if (days.length > 31) {
+    throw new createError.BadRequest('El rango máximo permitido es de 31 días');
+  }
+
+  return days;
+};
+
 const sumOperativeMinutes = ({ blocks, skillsMap }) => blocks.reduce((total, block) => {
   const skill = skillsMap[String(block.skillId)];
   if (!skill || skill.type !== 'operative') return total;
@@ -1108,6 +1131,211 @@ const updateShiftTemplate = async (id, { code, name, blocks, status, updatedBy }
   return { updated: true };
 };
 
+const bulkAssignShiftTemplate = async ({
+  templateId,
+  userIds,
+  startDate,
+  endDate,
+  overwriteDraft = false,
+  createdBy
+}) => {
+  assertValidObjectId(templateId, 'templateId inválido');
+  assertValidObjectId(createdBy, 'createdBy inválido');
+
+  if (!Array.isArray(userIds) || userIds.length === 0) {
+    throw new createError.BadRequest('Debe enviar al menos un userId');
+  }
+
+  const collection = await Database(COLLECTION);
+  const usersCollection = await Database(USERS_COLLECTION);
+  const skillsCollection = await Database(SKILLS_COLLECTION);
+  const templatesCollection = await Database(SHIFT_TEMPLATES_COLLECTION);
+
+  const uniqueUserIds = [...new Set(userIds.map(String))];
+  uniqueUserIds.forEach((id) => assertValidObjectId(id, `userId inválido: ${id}`));
+
+  const targetDates = getDateRangeDays({ startDate, endDate });
+  const dateRangeStart = parseStrictISODateOrThrow(targetDates[0]);
+  const dateRangeEnd = parseStrictISODateOrThrow(targetDates[targetDates.length - 1]);
+  dateRangeEnd.setUTCHours(23, 59, 59, 999);
+
+  const template = await templatesCollection.findOne({ _id: new ObjectId(templateId) });
+  if (!template) {
+    throw new createError.NotFound('Turno tipo no encontrado');
+  }
+
+  if (template.status !== 'active') {
+    throw new createError.BadRequest('El turno tipo seleccionado está inactivo');
+  }
+
+  const normalizedBlocks = validateBlocksStructure((template.blocks || []).map((block) => ({
+    start: block.start,
+    end: block.end,
+    skillId: String(block.skillId)
+  })));
+
+  const blockSkillIds = normalizedBlocks.map((block) => String(block.skillId));
+  const skillsMap = await buildSkillsMapFromIds(skillsCollection, blockSkillIds);
+  ensureActiveSkillsOrThrow({ blocks: normalizedBlocks, skillsMap });
+
+  const users = await usersCollection.find({
+    _id: { $in: uniqueUserIds.map((id) => new ObjectId(id)) }
+  }).toArray();
+
+  const usersMap = {};
+  users.forEach((user) => {
+    usersMap[user._id.toString()] = user;
+  });
+
+  const existingSchedules = await collection.find({
+    userId: { $in: uniqueUserIds.map((id) => new ObjectId(id)) },
+    date: { $gte: dateRangeStart, $lte: dateRangeEnd }
+  }).toArray();
+
+  const existingByKey = {};
+  existingSchedules.forEach((schedule) => {
+    const dayKey = normalizeDate(schedule.date);
+    existingByKey[`${schedule.userId.toString()}__${dayKey}`] = schedule;
+  });
+
+  const conflicts = [];
+  const operations = [];
+
+  for (const rawUserId of uniqueUserIds) {
+    const user = usersMap[rawUserId];
+
+    if (!user) {
+      conflicts.push({
+        userId: rawUserId,
+        date: null,
+        type: 'user_not_found',
+        message: 'El agente no existe'
+      });
+      continue;
+    }
+
+    if (user.status !== 'active' || user.role !== 'agente') {
+      conflicts.push({
+        userId: rawUserId,
+        userName: user.name || 'Sin nombre',
+        date: null,
+        type: 'user_not_assignable',
+        message: 'Solo se pueden asignar turnos a agentes activos'
+      });
+      continue;
+    }
+
+    const allowedSet = new Set((user.allowedSkills || []).map((skillId) => String(skillId)));
+
+    try {
+      validateDayBlocksBusinessRules({
+        blocks: normalizedBlocks,
+        skillsMap,
+        allowedSkillsSet: allowedSet,
+        userName: user.name || 'Usuario desconocido'
+      });
+    } catch (error) {
+      conflicts.push({
+        userId: rawUserId,
+        userName: user.name || 'Sin nombre',
+        date: null,
+        type: 'skills_not_allowed',
+        message: error.message
+      });
+      continue;
+    }
+
+    for (const day of targetDates) {
+      const existing = existingByKey[`${rawUserId}__${day}`];
+      const dateObject = parseStrictISODateOrThrow(day);
+
+      if (!existing) {
+        operations.push({
+          insertOne: {
+            document: {
+              userId: new ObjectId(rawUserId),
+              date: dateObject,
+              blocks: normalizedBlocks.map((block) => ({
+                start: block.start,
+                end: block.end,
+                skillId: new ObjectId(block.skillId)
+              })),
+              createdBy: new ObjectId(createdBy),
+              createdAt: new Date(),
+              status: 'borrador',
+              templateId: new ObjectId(templateId)
+            }
+          }
+        });
+        continue;
+      }
+
+      if (existing.status !== 'borrador') {
+        conflicts.push({
+          userId: rawUserId,
+          userName: user.name || 'Sin nombre',
+          date: day,
+          type: 'status_locked',
+          message: `Ya existe un horario en estado ${existing.status}`
+        });
+        continue;
+      }
+
+      if (!overwriteDraft) {
+        conflicts.push({
+          userId: rawUserId,
+          userName: user.name || 'Sin nombre',
+          date: day,
+          type: 'draft_exists',
+          message: 'Ya existe un borrador (activa sobrescribir borradores para reemplazarlo)'
+        });
+        continue;
+      }
+
+      operations.push({
+        updateOne: {
+          filter: { _id: existing._id },
+          update: {
+            $set: {
+              blocks: normalizedBlocks.map((block) => ({
+                start: block.start,
+                end: block.end,
+                skillId: new ObjectId(block.skillId)
+              })),
+              templateId: new ObjectId(templateId),
+              editedAt: new Date(),
+              editedBy: new ObjectId(createdBy)
+            }
+          }
+        }
+      });
+    }
+  }
+
+  if (operations.length) {
+    await collection.bulkWrite(operations, { ordered: false });
+  }
+
+  const insertedCount = operations.filter((operation) => operation.insertOne).length;
+  const updatedCount = operations.filter((operation) => operation.updateOne).length;
+
+  return {
+    templateId,
+    overwriteDraft,
+    range: {
+      startDate: targetDates[0],
+      endDate: targetDates[targetDates.length - 1],
+      totalDays: targetDates.length
+    },
+    requestedAgents: uniqueUserIds.length,
+    assignmentsAttempted: uniqueUserIds.length * targetDates.length,
+    insertedCount,
+    updatedCount,
+    conflictCount: conflicts.length,
+    conflicts
+  };
+};
+
 const create = async (horario) => {
   const collection = await Database(COLLECTION);
   const usersCollection = await Database(USERS_COLLECTION);
@@ -1842,6 +2070,7 @@ module.exports.HorariosService = {
   getDailyOperativeHoursReport,
   createShiftTemplate,
   updateShiftTemplate,
+  bulkAssignShiftTemplate,
   create,
   update,
   publishByDate,

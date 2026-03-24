@@ -37,6 +37,18 @@ module.exports.HorariosController = {
     }
   },
 
+  bulkAssignShiftTemplate: async (req, res, next) => {
+    try {
+      const result = await HorariosService.bulkAssignShiftTemplate({
+        ...req.body,
+        createdBy: req.user.id
+      });
+      Response.success(res, 200, 'Asignación masiva ejecutada', result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
   getHorariosByDate: async (req, res, next) => {
     try {
       const { date, statuses } = req.query;
