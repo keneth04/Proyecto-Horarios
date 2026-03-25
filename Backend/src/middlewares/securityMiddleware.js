@@ -51,6 +51,9 @@ module.exports.SecurityMiddlewares = ({ allowedOrigins, jsonLimit, cspConnectSrc
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
+          baseUri: ["'self'"],
+          frameAncestors: ["'none'"],
+          objectSrc: ["'none'"],
           scriptSrc: ["'self'"],
           connectSrc: toConnectSrcDirectives(cspConnectSrc)
         }
