@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { HorariosApi, SkillsApi, UsersApi } from '../../api/endpoints';
+import FancyCheckbox from '../../components/FancyCheckbox';
 import { useToast } from '../../components/Toast';
 import { getErrorMessage, isValidHour } from '../../utils/helpers';
 import { getAllowedSkillsForUser } from '../../utils/skills';
@@ -381,10 +382,13 @@ export default function CreateDraftPage() {
           </select>
           <input type="date" value={bulkStartDate} onChange={(e) => setBulkStartDate(e.target.value)} />
           <input type="date" value={bulkEndDate} onChange={(e) => setBulkEndDate(e.target.value)} />
-          <label className="flex items-center gap-2 rounded-lg border border-[#e6deef] bg-white px-3 py-2 text-sm text-[#2b2139]">
-            <input type="checkbox" checked={overwriteDraft} onChange={(e) => setOverwriteDraft(e.target.checked)} />
-            Sobrescribir borradores existentes
-          </label>
+          <FancyCheckbox
+            id="overwrite-draft"
+            checked={overwriteDraft}
+            onChange={(e) => setOverwriteDraft(e.target.checked)}
+            label="Sobrescribir borradores existentes"
+            className="w-full justify-center md:justify-start"
+          />
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -449,7 +453,14 @@ export default function CreateDraftPage() {
                 return (
                   <tr key={user._id} className="border-t border-[#efe8f6]">
                     <td className="px-3 py-2">
-                      <input type="checkbox" checked={checked} onChange={() => toggleBulkUser(String(user._id))} />
+                      <FancyCheckbox
+                        id={`bulk-user-${user._id}`}
+                        checked={checked}
+                        onChange={() => toggleBulkUser(String(user._id))}
+                        label={`Seleccionar a ${user.name}`}
+                        hideLabel
+                        className="border-transparent bg-transparent p-0 hover:border-transparent hover:shadow-none"
+                      />
                     </td>
                     <td className="px-3 py-2">
                       <p className="font-medium text-[#2b2139]">{user.name}</p>
@@ -540,7 +551,7 @@ export default function CreateDraftPage() {
           <h3 className="text-base font-bold text-[#2b2139]">Crear borrador por agente y día</h3>
           <p className="text-sm text-[#5e536d]">Selecciona agente, fecha y arma los bloques manualmente o aplica un turno tipo existente.</p>
         </div>
-       <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-3">
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           <select value={userId} onChange={(e) => setUserId(e.target.value)}>{users.map((u) => <option value={u._id} key={u._id}>{u.name}</option>)}</select>
           <div className="flex gap-2">
