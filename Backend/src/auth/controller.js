@@ -38,6 +38,8 @@ module.exports.AuthController = {
 
   logout: async (req, res, next) => {
     try {
+      await AuthService.logout(req.user.id);
+      
       res.clearCookie(Config.session.cookieName, {
         ...getAuthCookieOptions(),
         expires: new Date(0),

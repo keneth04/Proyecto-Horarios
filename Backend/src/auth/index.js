@@ -16,7 +16,7 @@ const router = express.Router();
 module.exports.AuthAPI = (app) => {
   router
     .post('/login', AuthRateLimiters.login, validateRequest({ body: authSchemas.login }), AuthController.login)
-    .post('/logout', AuthController.logout)
+    .post('/logout', AuthMiddleware, AuthController.logout)
     .get('/session', AuthMiddleware, AuthController.getSession)
     .post('/forgot-password', AuthRateLimiters.forgotPassword, validateRequest({ body: authSchemas.forgotPassword }), AuthController.forgotPassword)
     .post('/reset-password', validateRequest({ body: authSchemas.resetPassword }), AuthController.resetPassword);

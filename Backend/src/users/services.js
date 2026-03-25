@@ -227,6 +227,7 @@ const create = async (body) => {
     password: hashedPassword,
     role: finalRole,
     status: 'active',
+    sessionVersion: 0,
     campaign: normalizeCampaign(campaign),
     allowedSkills: normalizedAllowedSkills ?? [],
     createdAt: new Date()
@@ -251,7 +252,11 @@ const updateUser = async (id, body) => {
   let payload = { ...body };
 
   // password
+  const isPasswordChange = Boolean(payload.password);
   payload = await hashPasswordIfPresent(payload);
+  if (isPasswordChange) {
+    payload.sessionVersion = (existingUser.sessionVersion || 0) + 1;
+  }
 
   if (payload.campaign !== undefined) {
     payload.campaign = normalizeCampaign(payload.campaign);
@@ -296,19 +301,30 @@ const changeStatus = async (id, status) => {
 
   const collection = await Database(COLLECTION);
 
-  const result = await collection.updateOne(
+  const existingUser = await collection.findOne(
     { _id: new ObjectId(id) },
-    {
-      $set: {
-        status,
-        updatedAt: new Date()
-      }
-    }
+    { projection: { sessionVersion: 1 } }
   );
 
-  if (result.matchedCount === 0) {
+  if (!existingUser) {
     throw new createError.NotFound('Usuario no encontrado');
   }
+
+  const updateSet = {
+    status,
+    updatedAt: new Date()
+  };
+
+  if (status === 'inactive') {
+    updateSet.sessionVersion = (existingUser.sessionVersion || 0) + 1;
+  }
+
+  await collection.updateOne(
+    { _id: new ObjectId(id) },
+    {
+      $set: updateSet
+    }
+  );
 
   return { status };
 };

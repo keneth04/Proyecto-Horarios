@@ -21,6 +21,7 @@ const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCK_TIME_MS = 10 * 60 * 1000;
+const DEFAULT_SESSION_VERSION = 0;
 
 /**
  * 🔎 Valida credenciales básicas
@@ -145,10 +146,15 @@ const ensureStrongPassword = (password) => {
  * 🔐 Genera token JWT
  */
 const generateToken = (user) => {
+  const sessionVersion = Number.isInteger(user.sessionVersion)
+    ? user.sessionVersion
+    : DEFAULT_SESSION_VERSION;
+
   const payload = {
     id: user._id,
     role: user.role,
-    email: user.email
+    email: user.email,
+    sessionVersion
   };
 
   return jwt.sign(payload, JWT_SECRET, {
@@ -238,6 +244,7 @@ const resetPassword = async ({ token, newPassword }) => {
     {
       $set: {
         password: hashedPassword,
+        sessionVersion: (user.sessionVersion || 0) + 1,
         updatedAt: new Date()
       },
       $unset: {
@@ -249,6 +256,31 @@ const resetPassword = async ({ token, newPassword }) => {
 
   return { updated: true };
 };
+
+const logout = async (userId) => {
+  const collection = await Database(COLLECTION);
+  const objectId = new ObjectId(userId);
+
+  const user = await collection.findOne(
+    { _id: objectId },
+    { projection: { sessionVersion: 1 } }
+  );
+
+  if (!user) {
+    throw new createError.Unauthorized('Sesión inválida');
+  }
+
+  await collection.updateOne(
+    { _id: objectId },
+    {
+      $set: {
+        sessionVersion: (user.sessionVersion || 0) + 1,
+        updatedAt: new Date()
+      }
+    }
+  );
+};
+
 
 /**
  * 🚀 LOGIN PRINCIPAL
@@ -285,6 +317,7 @@ const login = async (credentials) => {
 
 module.exports.AuthService = {
   login,
+  logout,
   getSessionUser,
   forgotPassword,
   resetPassword
