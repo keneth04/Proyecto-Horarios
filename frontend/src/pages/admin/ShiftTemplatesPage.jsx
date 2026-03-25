@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { HorariosApi, SkillsApi } from '../../api/endpoints';
 import { useToast } from '../../components/Toast';
 import { getErrorMessage, isValidHour } from '../../utils/helpers';
+import StatusToggle from '../../components/StatusToggle';
 
 const EMPTY_BLOCK = { start: '08:00', end: '09:00', skillId: '' };
 const EMPTY_FORM = {
@@ -29,7 +30,17 @@ export default function ShiftTemplatesPage() {
         SkillsApi.list()
       ]);
 
-      setTemplates(templatesRes?.data?.body || []);
+      const templatesPayload = Array.isArray(templatesRes?.data?.body)
+        ? [...templatesRes.data.body]
+        : [];
+
+      templatesPayload.sort((a, b) => {
+        const codeA = String(a?.code || '').toLowerCase();
+        const codeB = String(b?.code || '').toLowerCase();
+        return codeA.localeCompare(codeB);
+      });
+
+      setTemplates(templatesPayload);
       setSkills((skillsRes?.data?.body || []).filter((skill) => skill.status === 'active'));
     } catch (error) {
       push(getErrorMessage(error), 'error');
@@ -156,6 +167,7 @@ export default function ShiftTemplatesPage() {
       <h2 className="panel-title">Turnos reutilizables</h2>
 
       <div className="card space-y-3 p-4">
+        <p className="section-subtitle">Crear turno</p>
         <p className="text-sm text-[#5e536d]">Define plantillas (A, B, C...) que representan un día completo de bloques. Esta configuración no asigna agentes aún.</p>
 
         <div className="grid gap-3 md:grid-cols-2">
@@ -196,10 +208,17 @@ export default function ShiftTemplatesPage() {
               </p>
 
               <div className="flex gap-2">
-                <button onClick={() => edit(template)} className="btn-secondary">Editar</button>
-                <button onClick={() => toggleStatus(template)} className="btn-secondary">
-                  {template.status === 'active' ? 'Desactivar' : 'Activar'}
+                <button
+                  onClick={() => edit(template)}
+                  className="rounded-xl border border-[#76549233] bg-[#76549214] px-3 py-2 text-sm font-semibold text-[#5f3f7c] transition duration-200 hover:bg-[#76549222] focus:outline-none focus:ring-4 focus:ring-[#76549226]"
+                >
+                  Editar
                 </button>
+                <StatusToggle
+                  active={template.status === 'active'}
+                  onToggle={() => toggleStatus(template)}
+                  label={`Cambiar estado de turno ${template.code}`}
+                />
               </div>
             </div>
 
