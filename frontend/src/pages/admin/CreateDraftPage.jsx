@@ -364,6 +364,7 @@ export default function CreateDraftPage() {
     <section className="space-y-6">
       <h2 className="panel-title">Crear horario borrador</h2>
       <div className="card space-y-4 p-4">
+        <p className="section-subtitle">Asignación masiva</p>
         <div>
           <h3 className="text-base font-bold text-[#2b2139]">Asignación masiva de turnos de tipo A, B, C...</h3>
           <p className="text-sm text-[#5e536d]">Aplica un turno tipo a múltiples agentes y un rango de fechas. Si ya existe un horario, el sistema reporta conflicto o lo reemplaza solo si activas sobrescribir borrador.</p>
@@ -533,35 +534,47 @@ export default function CreateDraftPage() {
         </div>
       </div>
 
-      <div className="card grid gap-3 p-4 md:grid-cols-3">
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        <select value={userId} onChange={(e) => setUserId(e.target.value)}>{users.map((u) => <option value={u._id} key={u._id}>{u.name}</option>)}</select>
-        <div className="flex gap-2">
-          <select value={selectedTemplateId} onChange={(e) => setSelectedTemplateId(e.target.value)}>
-            <option value="">Turno tipo (opcional)</option>
-            {templates.map((template) => (
-              <option key={template._id} value={template._id}>
-                {template.code}{template.name ? ` - ${template.name}` : ''}
-              </option>
-            ))}
-          </select>
-          <button onClick={applyTemplate} className="btn-secondary">Aplicar</button>
+      <div className="card space-y-4 p-4">
+        <p className="section-subtitle">Asignación individual</p>
+        <div>
+          <h3 className="text-base font-bold text-[#2b2139]">Crear borrador por agente y día</h3>
+          <p className="text-sm text-[#5e536d]">Selecciona agente, fecha y arma los bloques manualmente o aplica un turno tipo existente.</p>
         </div>
-      </div>
-      {blocks.map((block, idx) => (
-        <div key={idx} className="card grid gap-3 p-4 md:grid-cols-[1fr_1fr_1fr_auto]">
-          <input value={block.start} onChange={(e) => setBlock(idx, 'start', e.target.value)} />
-          <input value={block.end} onChange={(e) => setBlock(idx, 'end', e.target.value)} />
-          <select value={block.skillId} disabled={!selectedUser} onChange={(e) => setBlock(idx, 'skillId', e.target.value)}>
-            <option value="">{selectedUser ? 'Habilidad' : 'Selecciona un agente primero'}</option>
-            {availableSkills.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
-          </select>
-          <button onClick={() => remove(idx)} className="btn-danger">Eliminar bloque</button>
+       <div className="grid gap-3 md:grid-cols-3">
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <select value={userId} onChange={(e) => setUserId(e.target.value)}>{users.map((u) => <option value={u._id} key={u._id}>{u.name}</option>)}</select>
+          <div className="flex gap-2">
+            <select value={selectedTemplateId} onChange={(e) => setSelectedTemplateId(e.target.value)}>
+              <option value="">Turno tipo (opcional)</option>
+              {templates.map((template) => (
+                <option key={template._id} value={template._id}>
+                  {template.code}{template.name ? ` - ${template.name}` : ''}
+                </option>
+              ))}
+            </select>
+            <button onClick={applyTemplate} className="btn-secondary">Aplicar</button>
+          </div>
         </div>
-      ))}
-      <div className="flex gap-3">
-        <button onClick={add} className="btn-secondary">Agregar bloque</button>
-        <button onClick={save} className="btn-primary">Guardar borrador</button>
+
+        <div className="space-y-3 rounded-xl border border-[#e6deef] bg-[#fbf9ff] p-3">
+          <p className="text-sm font-semibold text-[#2b2139]">Bloques del día</p>
+          {blocks.map((block, idx) => (
+            <div key={idx} className="card grid gap-3 p-4 md:grid-cols-[1fr_1fr_1fr_auto]">
+              <input value={block.start} onChange={(e) => setBlock(idx, 'start', e.target.value)} />
+              <input value={block.end} onChange={(e) => setBlock(idx, 'end', e.target.value)} />
+              <select value={block.skillId} disabled={!selectedUser} onChange={(e) => setBlock(idx, 'skillId', e.target.value)}>
+                <option value="">{selectedUser ? 'Habilidad' : 'Selecciona un agente primero'}</option>
+                {availableSkills.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
+              </select>
+              <button onClick={() => remove(idx)} className="btn-danger">Eliminar bloque</button>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex gap-3">
+          <button onClick={add} className="btn-secondary">Agregar bloque</button>
+          <button onClick={save} className="btn-primary">Guardar borrador</button>
+        </div>
       </div>
     </section>
   );
