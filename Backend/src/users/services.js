@@ -28,6 +28,26 @@ const assertValidEmail = (email) => {
   }
 };
 
+const normalizeEmailInput = (email) => {
+  if (typeof email !== 'string') {
+    throw new createError.BadRequest('Email inválido');
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  assertValidEmail(normalizedEmail);
+  return normalizedEmail;
+};
+
+const isMongoDuplicateKeyError = (error) => error?.code === 11000;
+
+const mapDuplicateEmailError = (error, message = 'El email ya está en uso por otro usuario') => {
+  if (!isMongoDuplicateKeyError(error)) {
+    throw error;
+  }
+
+  throw new createError.Conflict(message);
+};
+
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const normalizePagination = ({ page, limit }) => {
@@ -188,7 +208,7 @@ const getById = async (id) => {
 
 const getByEmail = async (email) => {
   const collection = await Database(COLLECTION);
-  return collection.findOne({ email });
+  return collection.findOne({ email: normalizeEmailInput(email) });
 };
 
 /** =========================
@@ -204,9 +224,9 @@ const create = async (body) => {
     throw new createError.BadRequest('Datos incompletos');
   }
 
-  assertValidEmail(email);
+  const normalizedEmail = normalizeEmailInput(email);
 
-  const userExists = await getByEmail(email);
+  const userExists = await getByEmail(normalizedEmail);
   if (userExists) {
     throw new createError.Conflict('El usuario ya existe');
   }
@@ -223,7 +243,7 @@ const create = async (body) => {
 
   const newUser = {
     name,
-    email,
+    email: normalizedEmail,
     password: hashedPassword,
     role: finalRole,
     status: 'active',
@@ -233,8 +253,12 @@ const create = async (body) => {
     createdAt: new Date()
   };
 
-  const result = await collection.insertOne(newUser);
-  return result.insertedId;
+  try {
+    const result = await collection.insertOne(newUser);
+    return result.insertedId;
+  } catch (error) {
+    mapDuplicateEmailError(error, 'El usuario ya existe');
+  }
 };
 
 const updateUser = async (id, body) => {
@@ -263,7 +287,7 @@ const updateUser = async (id, body) => {
   }
 
   if (payload.email) {
-    const normalizedEmail = String(payload.email).trim().toLowerCase();
+    const normalizedEmail = normalizeEmailInput(payload.email);
     const userWithSameEmail = await collection.findOne({
       email: normalizedEmail,
       _id: { $ne: new ObjectId(id) }
@@ -283,13 +307,17 @@ const updateUser = async (id, body) => {
 
   payload.updatedAt = new Date();
 
-  const result = await collection.updateOne(
-    { _id: new ObjectId(id) },
-    { $set: payload }
-  );
+  try {
+    const result = await collection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: payload }
+    );
 
 
   return { modifiedCount: result.modifiedCount };
+  } catch (error) {
+    mapDuplicateEmailError(error);
+  }
 };
 
 const changeStatus = async (id, status) => {
@@ -337,4 +365,10 @@ module.exports.UsersService = {
   create,
   updateUser,
   changeStatus
+};
+
+module.exports.UsersServiceInternals = {
+  normalizeEmailInput,
+  isMongoDuplicateKeyError,
+  mapDuplicateEmailError
 };

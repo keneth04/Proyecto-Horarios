@@ -10,7 +10,7 @@ const CRITICAL_INDEXES = [
   {
     collection: 'users',
     key: { email: 1 },
-    options: { name: 'idx_users_email' }
+    options: { name: 'uidx_users_email', unique: true }
   },
   {
     collection: 'horarios',
