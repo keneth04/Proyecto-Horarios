@@ -16,6 +16,24 @@ const toOrigins = (value, fallback) => {
     .filter(Boolean);
 };
 
+const normalizeOrigin = (origin) => {
+  if (!isNonEmptyString(origin)) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(origin.trim());
+    return parsed.origin;
+  } catch (_error) {
+    return null;
+  }
+};
+
+const toNormalizedOrigins = (origins = []) => {
+  return [...new Set(origins.map(normalizeOrigin).filter(Boolean))];
+};
+
+
 const isNonEmptyString = (value) => typeof value === 'string' && value.trim().length > 0;
 
 const getSmtpConfig = () => ({
@@ -35,7 +53,12 @@ const Config = {
   jwt_secret: process.env.JWT_SECRET,
   http: {
     jsonLimit: process.env.HTTP_JSON_LIMIT || '100kb',
-    corsAllowedOrigins: toOrigins(process.env.CORS_ALLOWED_ORIGINS, ['http://localhost:5173'])
+    corsAllowedOrigins: toNormalizedOrigins(
+      toOrigins(process.env.CORS_ALLOWED_ORIGINS, ['http://localhost:5173'])
+    ),
+    cspConnectSrc: toNormalizedOrigins(
+      toOrigins(process.env.CSP_CONNECT_SRC, []).concat('self')
+    )
   },
   session: {
     cookieName: process.env.AUTH_COOKIE_NAME || 'auth_token',
@@ -74,6 +97,18 @@ const validateCriticalConfig = () => {
 
   if (!isNonEmptyString(Config.jwt_secret)) {
     missing.push('JWT_SECRET');
+  }
+
+  if (Config.http.corsAllowedOrigins.length === 0) {
+    missing.push('CORS_ALLOWED_ORIGINS (al menos un origin válido)');
+  }
+
+  if (
+    Config.session.sameSite === 'none' &&
+    Config.session.secure !== true &&
+    process.env.NODE_ENV === 'production'
+  ) {
+    missing.push('AUTH_COOKIE_SECURE=true (requerido cuando AUTH_COOKIE_SAMESITE=none)');
   }
 
   const smtpConfig = getSmtpConfig();

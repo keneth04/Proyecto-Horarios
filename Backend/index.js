@@ -17,7 +17,8 @@ validateCriticalConfig();
 
 const securityMiddlewares = SecurityMiddlewares({
   allowedOrigins: Config.http.corsAllowedOrigins,
-  jsonLimit: Config.http.jsonLimit
+  jsonLimit: Config.http.jsonLimit,
+  cspConnectSrc: Config.http.cspConnectSrc
 });
 
 app.use(RequestContextMiddleware);

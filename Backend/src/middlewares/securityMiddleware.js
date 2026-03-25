@@ -4,10 +4,34 @@ const cors = require('cors');
 
 const isValidOrigin = (origin, allowedOrigins) => {
   if (!origin) return true;
-  return allowedOrigins.includes(origin);
+
+  try {
+    return allowedOrigins.includes(new URL(origin).origin);
+  } catch (_error) {
+    return false;
+  }
 };
 
-module.exports.SecurityMiddlewares = ({ allowedOrigins, jsonLimit }) => {
+const toConnectSrcDirectives = (connectSrc = []) => {
+  const directives = new Set(["'self'"]);
+
+  connectSrc.forEach((value) => {
+    if (!value) {
+      return;
+    }
+
+    if (value === 'self' || value === "'self'") {
+      directives.add("'self'");
+      return;
+    }
+
+    directives.add(value);
+  });
+
+  return [...directives];
+};
+
+module.exports.SecurityMiddlewares = ({ allowedOrigins, jsonLimit, cspConnectSrc }) => {
   const corsMiddleware = cors({
     origin: (origin, callback) => {
       if (isValidOrigin(origin, allowedOrigins)) {
@@ -24,8 +48,14 @@ module.exports.SecurityMiddlewares = ({ allowedOrigins, jsonLimit }) => {
 
   return {
     helmet: helmet({
-      contentSecurityPolicy: false,
-      crossOriginEmbedderPolicy: false,
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'"],
+          connectSrc: toConnectSrcDirectives(cspConnectSrc)
+        }
+      },
+      crossOriginEmbedderPolicy: { policy: 'require-corp' },
       crossOriginResourcePolicy: { policy: 'cross-origin' }
     }),
     cors: corsMiddleware,
