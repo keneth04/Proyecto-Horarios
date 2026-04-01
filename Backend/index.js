@@ -10,6 +10,9 @@ const { SecurityMiddlewares } = require('./src/middlewares/securityMiddleware');
 const { ensureMongoIndexes } = require('./src/database');
 const { RequestContextMiddleware } = require('./src/middlewares/requestContextMiddleware');
 const { Logger } = require('./src/common/logger');
+const { ObservabilityMiddleware } = require('./src/middlewares/observabilityMiddleware');
+const { ObservabilityAPI } = require('./src/observability');
+const { HealthAPI } = require('./src/health');
 
 const app = express();
 
@@ -25,7 +28,10 @@ app.use(RequestContextMiddleware);
 app.use(securityMiddlewares.helmet);
 app.use(securityMiddlewares.cors);
 app.use(securityMiddlewares.jsonParser);
+app.use(ObservabilityMiddleware);
 
+HealthAPI(app);
+ObservabilityAPI(app);
 HorariosAPI(app);
 UsersAPI(app);
 AuthAPI(app);

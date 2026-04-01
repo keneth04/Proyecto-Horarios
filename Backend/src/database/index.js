@@ -84,3 +84,24 @@ module.exports.ensureMongoIndexes = async () => {
     throw error;
   }
 };
+
+
+module.exports.DatabaseHealth = async () => {
+  try {
+    const db = await getConnection();
+    await db.command({ ping: 1 });
+
+    return {
+      status: 'up'
+    };
+  } catch (error) {
+    Logger.error('mongo_healthcheck_failed', {
+      error: Logger.toErrorObject(error)
+    });
+
+    return {
+      status: 'down',
+      reason: error?.message || 'unknown_error'
+    };
+  }
+};
