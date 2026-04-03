@@ -41,7 +41,7 @@ module.exports.SecurityMiddlewares = ({ allowedOrigins, jsonLimit, cspConnectSrc
       return callback(createError.Forbidden('Origen no permitido por CORS'));
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Authorization', 'Content-Type'],
+    allowedHeaders: ['Authorization', 'Content-Type', 'X-CSRF-Token'],
     maxAge: 86400,
     credentials: true
   });

@@ -45,6 +45,11 @@ const getSmtpConfig = () => ({
 });
 
 const isProduction = process.env.NODE_ENV === 'production';
+const COOKIE_SAMESITE_VALUES = new Set(['strict', 'lax', 'none']);
+const toSameSite = (value, fallback = 'strict') => {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  return COOKIE_SAMESITE_VALUES.has(normalized) ? normalized : fallback;
+};
 
 const Config = {
   port: process.env.PORT,
@@ -62,7 +67,7 @@ const Config = {
   },
   session: {
     cookieName: process.env.AUTH_COOKIE_NAME || 'auth_token',
-    sameSite: process.env.AUTH_COOKIE_SAMESITE || (isProduction ? 'strict' : 'lax'),
+    sameSite: toSameSite(process.env.AUTH_COOKIE_SAMESITE, 'strict'),
     secure: process.env.AUTH_COOKIE_SECURE
       ? process.env.AUTH_COOKIE_SECURE === 'true'
       : isProduction,
@@ -109,6 +114,10 @@ const validateCriticalConfig = () => {
     process.env.NODE_ENV === 'production'
   ) {
     missing.push('AUTH_COOKIE_SECURE=true (requerido cuando AUTH_COOKIE_SAMESITE=none)');
+  }
+
+  if (!COOKIE_SAMESITE_VALUES.has(Config.session.sameSite)) {
+    missing.push('AUTH_COOKIE_SAMESITE (strict, lax o none)');
   }
 
   const smtpConfig = getSmtpConfig();

@@ -15,7 +15,12 @@ const getTokenFromRequest = (req) => {
   return getAuthTokenFromCookies(req);
 };
 
-module.exports.AuthMiddleware = async (req, res, next) => {
+const getCsrfTokenFromRequest = (req) => {
+  const token = req.headers['x-csrf-token'];
+  return typeof token === 'string' ? token.trim() : '';
+};
+
+const AuthMiddleware = async (req, res, next) => {
   try {
     const token = getTokenFromRequest(req);
 
@@ -50,7 +55,8 @@ module.exports.AuthMiddleware = async (req, res, next) => {
       id: user._id,
       email: user.email,
       role: user.role,
-      sessionVersion: currentSessionVersion
+      sessionVersion: currentSessionVersion,
+      csrfToken: typeof decoded.csrfToken === 'string' ? decoded.csrfToken : ''
     };
 
     next();
@@ -58,4 +64,25 @@ module.exports.AuthMiddleware = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+};
+
+const LogoutCsrfMiddleware = (req, _res, next) => {
+  try {
+    const csrfHeaderToken = getCsrfTokenFromRequest(req);
+    const csrfSessionToken = req.user?.csrfToken;
+
+    if (!csrfHeaderToken || !csrfSessionToken || csrfHeaderToken !== csrfSessionToken) {
+      throw new createError.Forbidden('Token CSRF inválido');
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports.AuthMiddleware = AuthMiddleware;
+module.exports.LogoutCsrfMiddleware = LogoutCsrfMiddleware;
+module.exports.AuthMiddlewareInternals = {
+  getCsrfTokenFromRequest
 };

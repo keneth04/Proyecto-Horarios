@@ -4,6 +4,7 @@ import api from '../api/client';
 import { AuthApi } from '../api/endpoints';
 
 const AuthContext = createContext(null);
+const CSRF_STORAGE_KEY = 'csrfToken';
 
 const readPersistedUser = () => {
   const raw = localStorage.getItem('user');
@@ -22,9 +23,19 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(readPersistedUser);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
 
+  const persistCsrfToken = (token) => {
+    if (typeof token === 'string' && token.trim().length > 0) {
+      localStorage.setItem(CSRF_STORAGE_KEY, token);
+      return;
+    }
+
+    localStorage.removeItem(CSRF_STORAGE_KEY);
+  };
+
   const clearSession = (shouldRedirect = true) => {
     setUser(null);
     localStorage.removeItem('user');
+    localStorage.removeItem(CSRF_STORAGE_KEY);
     if (shouldRedirect) {
       navigate('/login', { replace: true });
     }
@@ -38,6 +49,7 @@ export function AuthProvider({ children }) {
         if (!isMounted) return;
 
         const sessionUser = data.body.user;
+        persistCsrfToken(data.body.csrfToken);
         setUser(sessionUser);
         localStorage.setItem('user', JSON.stringify(sessionUser));
       } catch (_) {
@@ -74,14 +86,15 @@ export function AuthProvider({ children }) {
     };
   }, [navigate]);
 
-  const login = (nextUser) => {
+  const login = (nextUser, csrfToken) => {
+    persistCsrfToken(csrfToken);
     setUser(nextUser);
     localStorage.setItem('user', JSON.stringify(nextUser));
   };
 
   const logout = async ({ silent = false } = {}) => {
     try {
-      await AuthApi.logout();
+      await AuthApi.logout(localStorage.getItem(CSRF_STORAGE_KEY));
     } catch (_) {
       // noop: cerrar sesión local aunque falle el endpoint
     } finally {

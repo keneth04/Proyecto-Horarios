@@ -18,7 +18,8 @@ module.exports.AuthController = {
       const result = await AuthService.login(req.body);
       res.cookie(Config.session.cookieName, result.token, getAuthCookieOptions());
       Response.success(res, 200, 'Login exitoso', {
-        user: result.user
+        user: result.user,
+        csrfToken: result.csrfToken
       });
     } catch (error) {
       next(error);
@@ -29,7 +30,8 @@ module.exports.AuthController = {
     try {
       const user = await AuthService.getSessionUser(req.user.id);
       Response.success(res, 200, 'Sesión activa', {
-        user
+        user,
+        csrfToken: req.user.csrfToken
       });
     } catch (error) {
       next(error);

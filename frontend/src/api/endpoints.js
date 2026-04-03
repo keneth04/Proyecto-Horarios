@@ -3,7 +3,10 @@ import api from './client';
 export const AuthApi = {
   login: (payload) => api.post('/auth/login', payload),
   session: () => api.get('/auth/session'),
-  logout: () => api.post('/auth/logout'),
+  logout: (csrfToken) =>
+    api.post('/auth/logout', null, {
+      headers: csrfToken ? { 'X-CSRF-Token': csrfToken } : undefined
+    }),
   forgotPassword: (payload) => api.post('/auth/forgot-password', payload),
   resetPassword: (payload) => api.post('/auth/reset-password', payload)
 };

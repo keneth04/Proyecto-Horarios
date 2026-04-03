@@ -22,6 +22,7 @@ const MIN_PASSWORD_LENGTH = 8;
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCK_TIME_MS = 10 * 60 * 1000;
 const DEFAULT_SESSION_VERSION = 0;
+const CSRF_TOKEN_BYTES = 32;
 
 /**
  * 🔎 Valida credenciales básicas
@@ -154,13 +155,16 @@ const generateToken = (user) => {
     id: user._id,
     role: user.role,
     email: user.email,
-    sessionVersion
+    sessionVersion,
+    csrfToken: user.csrfToken
   };
 
   return jwt.sign(payload, JWT_SECRET, {
     expiresIn: JWT_EXPIRES
   });
 };
+
+const generateCsrfToken = () => crypto.randomBytes(CSRF_TOKEN_BYTES).toString('hex');
 
 const getSessionUser = async (userId) => {
   const collection = await Database(COLLECTION);
@@ -302,10 +306,15 @@ const login = async (credentials) => {
 
   await resetLoginAttempts(user._id);
 
-  const token = generateToken(user);
+  const csrfToken = generateCsrfToken();
+  const token = generateToken({
+    ...user,
+    csrfToken
+  });
 
   return {
     token,
+    csrfToken,
     user: {
       id: user._id,
       name: user.name,
