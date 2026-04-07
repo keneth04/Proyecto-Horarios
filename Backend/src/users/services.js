@@ -147,7 +147,7 @@ const buildProjectionFromFields = (fields = []) => (
   fields.reduce((projection, field) => {
     projection[field] = 1;
     return projection;
-  }, { password: 0 })
+  }, {})
 );
 
 const normalizeUserCampaign = (user) => ({
@@ -446,5 +446,7 @@ module.exports.UsersService = {
 module.exports.UsersServiceInternals = {
   normalizeEmailInput,
   isMongoDuplicateKeyError,
-  mapDuplicateEmailError
+  mapDuplicateEmailError,
+  normalizeFieldsCsv,
+  buildProjectionFromFields
 };

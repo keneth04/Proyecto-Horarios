@@ -26,3 +26,14 @@ test('mapDuplicateEmailError mapea duplicate key a Conflict', () => {
     /El usuario ya existe/
   );
 });
+
+test('normalizeFieldsCsv agrega _id y respeta catálogo permitido', () => {
+  const fields = UsersServiceInternals.normalizeFieldsCsv('name,email,campaign');
+  assert.deepEqual(fields, ['_id', 'name', 'email', 'campaign']);
+});
+
+test('buildProjectionFromFields arma proyección de inclusión pura', () => {
+  const projection = UsersServiceInternals.buildProjectionFromFields(['_id', 'name', 'email']);
+  assert.deepEqual(projection, { _id: 1, name: 1, email: 1 });
+  assert.equal(Object.prototype.hasOwnProperty.call(projection, 'password'), false);
+});
