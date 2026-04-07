@@ -120,7 +120,7 @@ export const HorariosApi = {
     });
   },
   
-  shiftTemplates: () => api.get('/horarios/turnos-tipo'),
+  shiftTemplates: (params) => api.get('/horarios/turnos-tipo', { params }),
   createShiftTemplate: (payload) => api.post('/horarios/turnos-tipo', payload),
   updateShiftTemplate: (id, payload) => api.patch(`/horarios/turnos-tipo/${id}`, payload),
   bulkAssignShiftTemplate: (payload) => api.post('/horarios/asignacion-masiva', payload),

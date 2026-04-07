@@ -16,9 +16,8 @@ const router = express.Router();
  */
 const RequireAdminIfUsersExist = async (req, res, next) => {
   try {
-    const users = await UsersService.getAll();
-
-    if (users.length === 0) {
+    const totalUsers = await UsersService.countUsers();
+    if (totalUsers === 0) {
       return next();
     }
 

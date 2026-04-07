@@ -19,6 +19,9 @@ const ALLOWED_SCHEDULE_STATUSES = ['borrador', 'publicado', 'archivado'];
 const ALLOWED_EDITABLE_STATUSES = ['borrador', 'publicado'];
 const ALLOWED_EDIT_MODES = ['day', 'week'];
 const ALLOWED_SHIFT_TEMPLATE_STATUSES = ['active', 'inactive'];
+const DEFAULT_PAGE = 1;
+const DEFAULT_LIMIT = 20;
+const MAX_LIMIT = 100;
 
 const inferSkillTypeFromName = (skill = {}) => {
   const upperName = String(skill.name || '').trim().toUpperCase();
@@ -37,6 +40,8 @@ const resolveSkillType = (skill) => {
   return inferSkillTypeFromName(skill);
 };
 
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 /* =========================
  * Helpers base
  * ========================= */
@@ -45,6 +50,18 @@ const assertValidObjectId = (id, message = 'ID inválido') => {
   if (!ObjectId.isValid(id)) {
     throw new createError.BadRequest(message);
   }
+};
+
+const normalizePagination = ({ page, limit }) => {
+  const parsedPage = Number.parseInt(page, 10);
+  const parsedLimit = Number.parseInt(limit, 10);
+
+  const safePage = Number.isNaN(parsedPage) || parsedPage < 1 ? DEFAULT_PAGE : parsedPage;
+  const safeLimit = Number.isNaN(parsedLimit) || parsedLimit < 1
+    ? DEFAULT_LIMIT
+    : Math.min(parsedLimit, MAX_LIMIT);
+
+  return { page: safePage, limit: safeLimit, skip: (safePage - 1) * safeLimit };
 };
 
 // HH:mm estricto
@@ -466,14 +483,75 @@ const validateDayBlocksBusinessRules = ({ blocks, skillsMap, allowedSkillsSet = 
  * Queries base
  * ========================= */
 
-const getShiftTemplates = async () => {
+const buildShiftTemplatesFilter = ({ status, code }) => {
+  const filter = {};
+
+  if (typeof status === 'string' && status !== 'all' && status.trim() !== '') {
+    const normalizedStatus = status.trim().toLowerCase();
+    if (!ALLOWED_SHIFT_TEMPLATE_STATUSES.includes(normalizedStatus)) {
+      throw new createError.BadRequest('Filtro de estado inválido');
+    }
+    filter.status = normalizedStatus;
+  }
+
+  if (typeof code === 'string' && code.trim() !== '') {
+    filter.code = { $regex: escapeRegex(code.trim()), $options: 'i' };
+  }
+
+  return filter;
+};
+
+const buildSchedulesFilter = ({ userId, status, fromDate, toDate }) => {
+  const filter = {};
+
+  if (userId !== undefined) {
+    assertValidObjectId(userId, 'ID de usuario inválido');
+    filter.userId = new ObjectId(userId);
+  }
+
+  if (typeof status === 'string' && status !== 'all' && status.trim() !== '') {
+    const normalizedStatus = status.trim().toLowerCase();
+    if (!ALLOWED_SCHEDULE_STATUSES.includes(normalizedStatus)) {
+      throw new createError.BadRequest('Filtro de estado inválido');
+    }
+    filter.status = normalizedStatus;
+  }
+
+  if (fromDate || toDate) {
+    const dateFilter = {};
+
+    if (fromDate) {
+      dateFilter.$gte = parseStrictISODateOrThrow(fromDate);
+    }
+
+    if (toDate) {
+      const endDate = parseStrictISODateOrThrow(toDate);
+      endDate.setUTCHours(23, 59, 59, 999);
+      dateFilter.$lte = endDate;
+    }
+
+    filter.date = dateFilter;
+  }
+
+  return filter;
+};
+
+const getShiftTemplates = async ({ page, limit, status, code } = {}) => {
   const templatesCollection = await Database(SHIFT_TEMPLATES_COLLECTION);
   const skillsCollection = await Database(SKILLS_COLLECTION);
 
-  const templates = await templatesCollection
-    .find({})
-    .sort({ status: 1, code: 1, createdAt: -1 })
-    .toArray();
+  const pagination = normalizePagination({ page, limit });
+  const filter = buildShiftTemplatesFilter({ status, code });
+
+  const [templates, total] = await Promise.all([
+    templatesCollection
+      .find(filter)
+      .sort({ status: 1, code: 1, createdAt: -1 })
+      .skip(pagination.skip)
+      .limit(pagination.limit)
+      .toArray(),
+    templatesCollection.countDocuments(filter)
+  ]);
 
   const skillIds = templates.flatMap((template) => (
     (template.blocks || []).map((block) => String(block.skillId))
@@ -482,12 +560,37 @@ const getShiftTemplates = async () => {
     ? await buildSkillsMapFromIds(skillsCollection, skillIds)
     : {};
 
-  return templates.map((template) => toShiftTemplateResponse({ template, skillsMap }));
+  return {
+    items: templates.map((template) => toShiftTemplateResponse({ template, skillsMap })),
+    page: pagination.page,
+    limit: pagination.limit,
+    total,
+    totalPages: total === 0 ? 0 : Math.ceil(total / pagination.limit)
+  };
 };
 
-const getAll = async () => {
+const getAll = async ({ page, limit, userId, status, fromDate, toDate } = {}) => {
   const collection = await Database(COLLECTION);
-  return collection.find({}).sort({ date: -1 }).toArray();
+  const pagination = normalizePagination({ page, limit });
+  const filter = buildSchedulesFilter({ userId, status, fromDate, toDate });
+
+  const [items, total] = await Promise.all([
+    collection
+      .find(filter)
+      .sort({ date: -1, _id: -1 })
+      .skip(pagination.skip)
+      .limit(pagination.limit)
+      .toArray(),
+    collection.countDocuments(filter)
+  ]);
+
+  return {
+    items,
+    page: pagination.page,
+    limit: pagination.limit,
+    total,
+    totalPages: total === 0 ? 0 : Math.ceil(total / pagination.limit)
+  };
 };
 
 const getById = async (id) => {

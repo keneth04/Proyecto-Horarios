@@ -152,13 +152,18 @@ export default function CreateDraftPage() {
   }, [bulkStartDate, bulkEndDate, bulkSelectedUserIds.length]);
 
   useEffect(() => {
-    Promise.all([UsersApi.list(), SkillsApi.list(), HorariosApi.shiftTemplates()]).then(([u, s, t]) => {
-      const activeUsers = u.data.body.filter((user) => user.status === 'active' && user.role === 'agente');
+    Promise.all([
+      UsersApi.list({ page: 1, limit: 100, status: 'active' }),
+      SkillsApi.list({ page: 1, limit: 100, status: 'active' }),
+      HorariosApi.shiftTemplates({ page: 1, limit: 100, status: 'active' })
+    ]).then(([u, s, t]) => {
+      const usersPayload = Array.isArray(u?.data?.body?.items) ? u.data.body.items : [];
+      const activeUsers = usersPayload.filter((user) => user.role === 'agente');
       setUsers(activeUsers);
       setUserId(activeUsers[0]?._id || '');
       setBulkSelectedUserIds(activeUsers.map((user) => String(user._id)));
-      setSkills(s.data.body.filter((skill) => skill.status === 'active'));
-      const activeTemplates = (t?.data?.body || []).filter((template) => template.status === 'active');
+      setSkills(Array.isArray(s?.data?.body?.items) ? s.data.body.items : []);
+      const activeTemplates = Array.isArray(t?.data?.body?.items) ? t.data.body.items : [];
       setTemplates(activeTemplates);
       setBulkTemplateId(activeTemplates[0]?._id || '');
     }).catch((error) => push(getErrorMessage(error), 'error'));

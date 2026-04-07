@@ -26,12 +26,12 @@ export default function ShiftTemplatesPage() {
   const load = async () => {
     try {
       const [templatesRes, skillsRes] = await Promise.all([
-        HorariosApi.shiftTemplates(),
-        SkillsApi.list()
+        HorariosApi.shiftTemplates({ page: 1, limit: 100 }),
+        SkillsApi.list({ page: 1, limit: 100, status: 'active' })
       ]);
 
-      const templatesPayload = Array.isArray(templatesRes?.data?.body)
-        ? [...templatesRes.data.body]
+      const templatesPayload = Array.isArray(templatesRes?.data?.body?.items)
+        ? [...templatesRes.data.body.items]
         : [];
 
       templatesPayload.sort((a, b) => {
@@ -41,7 +41,10 @@ export default function ShiftTemplatesPage() {
       });
 
       setTemplates(templatesPayload);
-      setSkills((skillsRes?.data?.body || []).filter((skill) => skill.status === 'active'));
+      const skillsPayload = Array.isArray(skillsRes?.data?.body?.items)
+        ? skillsRes.data.body.items
+        : [];
+      setSkills(skillsPayload);
     } catch (error) {
       push(getErrorMessage(error), 'error');
     }

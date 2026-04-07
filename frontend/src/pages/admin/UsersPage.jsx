@@ -32,8 +32,11 @@ export default function UsersPage() {
   const { push } = useToast();
 
   const loadSkills = async () => {
-    const skillsRes = await SkillsApi.list();
-    setSkills(skillsRes.data.body.filter((s) => s.status === 'active' && s.type !== 'break'));
+    const skillsRes = await SkillsApi.list({ page: 1, limit: 100, status: 'active' });
+    const skillsItems = Array.isArray(skillsRes.data.body?.items)
+      ? skillsRes.data.body.items
+      : [];
+    setSkills(skillsItems.filter((s) => s.type !== 'break'));
   };
 
   const loadUsers = async ({ page = currentPage } = {}) => {

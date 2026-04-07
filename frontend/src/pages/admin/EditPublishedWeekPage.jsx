@@ -85,11 +85,15 @@ export default function EditPublishedWeekPage() {
   }, {}), [skills]);
 
   useEffect(() => {
-    Promise.all([UsersApi.list(), SkillsApi.list()]).then(([u, s]) => {
-      const agents = u.data.body.filter((item) => item.role === 'agente' && item.status === 'active');
+    Promise.all([
+      UsersApi.list({ page: 1, limit: 100, status: 'active' }),
+      SkillsApi.list({ page: 1, limit: 100, status: 'active' })
+    ]).then(([u, s]) => {
+      const usersPayload = Array.isArray(u?.data?.body?.items) ? u.data.body.items : [];
+      const agents = usersPayload.filter((item) => item.role === 'agente');
       setUsers(agents);
       setUserId(agents[0]?._id || '');
-      setSkills(s.data.body.filter((skill) => skill.status === 'active'));
+      setSkills(Array.isArray(s?.data?.body?.items) ? s.data.body.items : []);
     }).catch((error) => push(getErrorMessage(error), 'error'));
   }, [push]);
 

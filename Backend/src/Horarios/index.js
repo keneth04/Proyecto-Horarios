@@ -17,6 +17,7 @@ module.exports.HorariosAPI = (app) => {
     '/turnos-tipo',
     AuthMiddleware,
     RoleMiddleware(['admin']),
+    validateRequest({ query: horariosSchemas.shiftTemplatesQuery }),
     HorariosController.getShiftTemplates
   );
 
@@ -167,6 +168,7 @@ module.exports.HorariosAPI = (app) => {
     '/',
     AuthMiddleware,
     RoleMiddleware(['admin']),
+    validateRequest({ query: horariosSchemas.listQuery }),
     HorariosController.getHorarios
   );
 

@@ -4,15 +4,8 @@ const { Response } = require('../common/response');
 module.exports.UsersController = {
   getUsers: async (req, res, next) => {
     try {
-      const hasPaginationOrFilters = ['page', 'limit', 'name', 'status'].some((key) => req.query[key] !== undefined);
-
-      if (hasPaginationOrFilters) {
-        const result = await UsersService.getPaginated(req.query);
-        return Response.success(res, 200, 'Lista de usuarios', result);
-      }
-
-      const users = await UsersService.getAll();
-      Response.success(res, 200, 'Lista de usuarios', users);
+      const result = await UsersService.getPaginated(req.query);
+      Response.success(res, 200, 'Lista de usuarios', result);
     } catch (error) {
       next(error);
     }

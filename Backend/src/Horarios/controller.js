@@ -6,8 +6,8 @@ module.exports.HorariosController = {
 
   getShiftTemplates: async (req, res, next) => {
     try {
-      const templates = await HorariosService.getShiftTemplates();
-      Response.success(res, 200, 'Turnos tipo', templates);
+      const result = await HorariosService.getShiftTemplates(req.query);
+      Response.success(res, 200, 'Turnos tipo', result);
     } catch (error) {
       next(error);
     }
@@ -69,8 +69,8 @@ module.exports.HorariosController = {
 
   getHorarios: async (req, res, next) => {
     try {
-      const horarios = await HorariosService.getAll();
-      Response.success(res, 200, 'Lista de horarios', horarios);
+      const result = await HorariosService.getAll(req.query);
+      Response.success(res, 200, 'Lista de horarios', result);
     } catch (error) {
       next(error);
     }

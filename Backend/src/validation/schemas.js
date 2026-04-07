@@ -430,6 +430,43 @@ const horariosSchemas = {
       statuses: parseStatusesCsv({ value: query.statuses, field: 'statuses', source })
     };
   },
+  listQuery: (query = {}) => {
+    const source = 'query params';
+    assertPlainObject(query, source);
+    parseUnknownFields(query, ['page', 'limit', 'userId', 'status', 'fromDate', 'toDate'], source);
+
+    const status = optionalString({ value: query.status, field: 'status', source });
+    if (status !== undefined && !['all', 'borrador', 'publicado', 'archivado'].includes(status)) {
+      throw buildValidationError('Error de validación en query params', [{ field: 'status', message: 'status inválido', code: 'any.only' }]);
+    }
+
+    return {
+      page: parseNumericQuery({ value: query.page, field: 'page', source, min: 1 }),
+      limit: parseNumericQuery({ value: query.limit, field: 'limit', source, min: 1, max: 100 }),
+      userId: optionalObjectId({ value: query.userId, field: 'userId', source }),
+      status,
+      fromDate: optionalIsoDate({ value: query.fromDate, field: 'fromDate', source }),
+      toDate: optionalIsoDate({ value: query.toDate, field: 'toDate', source })
+    };
+  },
+  shiftTemplatesQuery: (query = {}) => {
+    const source = 'query params';
+    assertPlainObject(query, source);
+    parseUnknownFields(query, ['page', 'limit', 'status', 'code'], source);
+
+    const status = optionalString({ value: query.status, field: 'status', source });
+    if (status !== undefined && !['all', 'active', 'inactive'].includes(status)) {
+      throw buildValidationError('Error de validación en query params', [{ field: 'status', message: 'status inválido', code: 'any.only' }]);
+    }
+
+    return {
+      page: parseNumericQuery({ value: query.page, field: 'page', source, min: 1 }),
+      limit: parseNumericQuery({ value: query.limit, field: 'limit', source, min: 1, max: 100 }),
+      status,
+      code: query.code === undefined ? undefined : normalizeString(String(query.code))
+    };
+  },
+
   weekByUserQuery: (query = {}) => {
     const source = 'query params';
     assertPlainObject(query, source);

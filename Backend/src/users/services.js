@@ -159,10 +159,9 @@ const validateAndNormalizeAllowedSkills = async (allowedSkills) => {
  * Queries
  * ========================= */
 
-const getAll = async () => {
+const countUsers = async () => {
   const collection = await Database(COLLECTION);
-  const users = await collection.find({}, { projection: { password: 0 } }).toArray();
-  return users.map(normalizeUserCampaign);
+    return collection.estimatedDocumentCount();
 };
 
 const getPaginated = async ({ page, limit, name, status }) => {
@@ -358,7 +357,7 @@ const changeStatus = async (id, status) => {
 };
 
 module.exports.UsersService = {
-  getAll,
+  countUsers,
   getPaginated,
   getById,
   getByEmail,

@@ -110,12 +110,6 @@ const ensureSingleActiveByType = async (collection, type) => {
   }
 };
 
-/* 🔹 Obtener todas */
-const getAll = async () => {
-  const collection = await Database(COLLECTION);
-  return collection.find({}).sort({ createdAt: -1 }).toArray();
-};
-
 const getPaginated = async ({ page, limit, name, status, type }) => {
   const collection = await Database(COLLECTION);
 
@@ -280,7 +274,6 @@ const changeStatus = async (id, status) => {
 };
 
 module.exports.SkillsService = {
-  getAll,
   getPaginated,
   getById,
   create,
