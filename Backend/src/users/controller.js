@@ -21,6 +21,24 @@ module.exports.UsersController = {
     }
   },
 
+  getAgentsCatalog: async (req, res, next) => {
+    try {
+      const items = await UsersService.getAgentsCatalog(req.query);
+      Response.success(res, 200, 'Catálogo de agentes', { items });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  getCampaignsCatalog: async (req, res, next) => {
+    try {
+      const items = await UsersService.getCampaignsCatalog(req.query);
+      Response.success(res, 200, 'Catálogo de campañas', { items });
+    } catch (error) {
+      next(error);
+    }
+  },
+
   createUser: async (req, res, next) => {
     try {
       const insertedId = await UsersService.create(req.body);

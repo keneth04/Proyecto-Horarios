@@ -44,6 +44,10 @@ module.exports.UsersAPI = (app) => {
    */
   router.get('/', AuthMiddleware, RoleMiddleware(['admin']), validateRequest({ query: usersSchemas.query }), UsersController.getUsers);
 
+  router.get('/agents', AuthMiddleware, RoleMiddleware(['admin']), validateRequest({ query: usersSchemas.agentsCatalogQuery }), UsersController.getAgentsCatalog);
+  
+  router.get('/campaigns', AuthMiddleware, RoleMiddleware(['admin']), validateRequest({ query: usersSchemas.campaignsCatalogQuery }), UsersController.getCampaignsCatalog);
+
   router.get('/:id', AuthMiddleware, RoleMiddleware(['admin']), validateRequest({ params: usersSchemas.idParam }), UsersController.getUser);
 
   router.patch('/:id', AuthMiddleware, RoleMiddleware(['admin']), validateRequest({ params: usersSchemas.idParam, body: usersSchemas.update }), UsersController.updateUser);

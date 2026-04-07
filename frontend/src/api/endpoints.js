@@ -20,6 +20,8 @@ export const SkillsApi = {
 
 export const UsersApi = {
   list: (params) => api.get('/users', { params }),
+  agents: (params) => api.get('/users/agents', { params }),
+  campaigns: (params) => api.get('/users/campaigns', { params }),
   create: (payload) => api.post('/users', payload),
   update: (id, payload) => api.patch(`/users/${id}`, payload),
   setStatus: (id, status) => api.patch(`/users/${id}/status`, { status })

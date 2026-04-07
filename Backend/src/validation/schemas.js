@@ -329,6 +329,35 @@ const usersSchemas = {
     }
 
     return { status };
+  },
+  agentsCatalogQuery: (query = {}) => {
+    const source = 'query params';
+    assertPlainObject(query, source);
+    parseUnknownFields(query, ['status', 'fields'], source);
+
+    const status = optionalString({ value: query.status, field: 'status', source });
+    if (status !== undefined && !['all', 'active', 'inactive'].includes(status)) {
+      throw buildValidationError('Error de validación en query params', [{ field: 'status', message: 'status inválido', code: 'any.only' }]);
+    }
+
+    const fields = optionalString({ value: query.fields, field: 'fields', source });
+
+    return {
+      status,
+      fields
+    };
+  },
+  campaignsCatalogQuery: (query = {}) => {
+    const source = 'query params';
+    assertPlainObject(query, source);
+    parseUnknownFields(query, ['status'], source);
+
+    const status = optionalString({ value: query.status, field: 'status', source });
+    if (status !== undefined && !['all', 'active', 'inactive'].includes(status)) {
+      throw buildValidationError('Error de validación en query params', [{ field: 'status', message: 'status inválido', code: 'any.only' }]);
+    }
+
+    return { status };
   }
 };
 

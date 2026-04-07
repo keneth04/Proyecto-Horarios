@@ -44,10 +44,8 @@ export default function StaffingPage() {
 
   const loadCampaigns = async () => {
     try {
-      const usersRes = await UsersApi.list({ page: 1, limit: 100 });
-      const users = Array.isArray(usersRes?.data?.body?.items) ? usersRes.data.body.items : [];
-      const campaigns = [...new Set(users.map((u) => String(u.campaign || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-      setCampaignOptions(campaigns);
+      const campaignsRes = await UsersApi.campaigns({ status: 'active' });
+      setCampaignOptions(Array.isArray(campaignsRes?.data?.body?.items) ? campaignsRes.data.body.items : []);
     } catch (error) {
       push(getErrorMessage(error), 'error');
     }

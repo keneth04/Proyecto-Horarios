@@ -86,11 +86,10 @@ export default function EditPublishedWeekPage() {
 
   useEffect(() => {
     Promise.all([
-      UsersApi.list({ page: 1, limit: 100, status: 'active' }),
+      UsersApi.agents({ status: 'active', fields: '_id,name,campaign,allowedSkills' }),
       SkillsApi.list({ page: 1, limit: 100, status: 'active' })
     ]).then(([u, s]) => {
-      const usersPayload = Array.isArray(u?.data?.body?.items) ? u.data.body.items : [];
-      const agents = usersPayload.filter((item) => item.role === 'agente');
+      const agents = Array.isArray(u?.data?.body?.items) ? u.data.body.items : [];
       setUsers(agents);
       setUserId(agents[0]?._id || '');
       setSkills(Array.isArray(s?.data?.body?.items) ? s.data.body.items : []);

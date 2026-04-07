@@ -153,12 +153,11 @@ export default function CreateDraftPage() {
 
   useEffect(() => {
     Promise.all([
-      UsersApi.list({ page: 1, limit: 100, status: 'active' }),
+      UsersApi.agents({ status: 'active', fields: '_id,name,email,campaign,allowedSkills' }),
       SkillsApi.list({ page: 1, limit: 100, status: 'active' }),
       HorariosApi.shiftTemplates({ page: 1, limit: 100, status: 'active' })
     ]).then(([u, s, t]) => {
-      const usersPayload = Array.isArray(u?.data?.body?.items) ? u.data.body.items : [];
-      const activeUsers = usersPayload.filter((user) => user.role === 'agente');
+      const activeUsers = Array.isArray(u?.data?.body?.items) ? u.data.body.items : [];
       setUsers(activeUsers);
       setUserId(activeUsers[0]?._id || '');
       setBulkSelectedUserIds(activeUsers.map((user) => String(user._id)));

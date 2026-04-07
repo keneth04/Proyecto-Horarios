@@ -11,6 +11,8 @@ const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
+const AGENTS_CATALOG_FIELDS = ['_id', 'name', 'email', 'campaign', 'allowedSkills', 'status'];
+const DEFAULT_AGENTS_FIELDS = ['_id', 'name', 'email', 'campaign', 'allowedSkills'];
 
 /** =========================
  * Helpers / Validaciones
@@ -112,6 +114,42 @@ const normalizeCampaign = (campaign) => {
   return campaign.trim();
 };
 
+const normalizeFieldsCsv = (fields) => {
+  if (fields === undefined) return [...DEFAULT_AGENTS_FIELDS];
+  if (typeof fields !== 'string') {
+    throw new createError.BadRequest('fields debe ser csv');
+  }
+
+  const parsedFields = [...new Set(
+    fields
+      .split(',')
+      .map((field) => field.trim())
+      .filter(Boolean)
+  )];
+
+  if (parsedFields.length === 0) {
+    return [...DEFAULT_AGENTS_FIELDS];
+  }
+
+  const invalidField = parsedFields.find((field) => !AGENTS_CATALOG_FIELDS.includes(field));
+  if (invalidField) {
+    throw new createError.BadRequest(`Campo inválido en fields: ${invalidField}`);
+  }
+
+  if (!parsedFields.includes('_id')) {
+    parsedFields.unshift('_id');
+  }
+
+  return parsedFields;
+};
+
+const buildProjectionFromFields = (fields = []) => (
+  fields.reduce((projection, field) => {
+    projection[field] = 1;
+    return projection;
+  }, { password: 0 })
+);
+
 const normalizeUserCampaign = (user) => ({
   ...user,
   campaign: normalizeCampaign(user.campaign)
@@ -208,6 +246,43 @@ const getById = async (id) => {
 const getByEmail = async (email) => {
   const collection = await Database(COLLECTION);
   return collection.findOne({ email: normalizeEmailInput(email) });
+};
+
+const getAgentsCatalog = async ({ status = 'active', fields }) => {
+  const collection = await Database(COLLECTION);
+  const selectedFields = normalizeFieldsCsv(fields);
+  const projection = buildProjectionFromFields(selectedFields);
+  const filter = { role: 'agente' };
+
+  if (status !== 'all') {
+    filter.status = status || 'active';
+  }
+
+  const items = await collection
+    .find(filter, { projection })
+    .sort({ name: 1, createdAt: -1 })
+    .toArray();
+
+  return items.map(normalizeUserCampaign);
+};
+
+const getCampaignsCatalog = async ({ status = 'active' }) => {
+  const collection = await Database(COLLECTION);
+  const filter = {
+    role: 'agente',
+    campaign: { $type: 'string' }
+  };
+
+  if (status !== 'all') {
+    filter.status = status || 'active';
+  }
+
+  const campaigns = await collection.distinct('campaign', filter);
+
+  return campaigns
+    .map(normalizeCampaign)
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b, 'es'));
 };
 
 /** =========================
@@ -361,6 +436,8 @@ module.exports.UsersService = {
   getPaginated,
   getById,
   getByEmail,
+  getAgentsCatalog,
+  getCampaignsCatalog,
   create,
   updateUser,
   changeStatus
