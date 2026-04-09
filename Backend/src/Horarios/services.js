@@ -2266,3 +2266,10 @@ module.exports.HorariosService = {
   editPublishedWeek,
   editWeek
 };
+
+module.exports.HorariosServiceInternals = {
+  parseStrictISODateOrThrow,
+  validateBlocksStructure,
+  resolveStatusesFromMode,
+  normalizePagination
+};

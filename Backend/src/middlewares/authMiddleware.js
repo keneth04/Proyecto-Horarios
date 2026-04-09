@@ -84,5 +84,6 @@ const LogoutCsrfMiddleware = (req, _res, next) => {
 module.exports.AuthMiddleware = AuthMiddleware;
 module.exports.LogoutCsrfMiddleware = LogoutCsrfMiddleware;
 module.exports.AuthMiddlewareInternals = {
+  getTokenFromRequest,
   getCsrfTokenFromRequest
 };
